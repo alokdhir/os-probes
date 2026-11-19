@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<systemhealth>
+    <file-match>-attacks$</file-match>
+    <title>Attacks - packets blocked coming in</title>
+    <y-axis_label>Packets/minute</y-axis_label>
+    <axis_formats>
+        <y>metric</y>
+    </axis_formats>
+    <axis_labels>
+        <y>Packets/minute</y>
+    </axis_labels>
+    <field_axes>
+        <all>y</all>
+        <blocklist>y</blocklist>
+    </field_axes>
+    <field_scales>
+        <all>60</all>
+        <blocklist>60</blocklist>
+    </field_scales>
+    <field_units>
+        <all>packets/min blocked</all>
+        <blocklist>packets/min blocked by blocklists</blocklist>
+    </field_units>
+</systemhealth>

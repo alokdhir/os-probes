@@ -1,0 +1,25 @@
+<metadata>
+    <attacks>
+        <filename>Attacks.js</filename>
+        <link>/ui/diagnostics/systemhealth</link>
+        <endpoints>
+            <endpoint>/api/diagnostics/systemhealth/get_rrd_list</endpoint>
+            <endpoint>/api/diagnostics/systemhealth/get_system_health/*</endpoint>
+        </endpoints>
+        <translations>
+            <title>Attacks</title>
+            <last24>Last 24 hours</last24>
+            <all>blocked</all>
+            <blocklist>by blocklists</blocklist>
+            <blocked>blocked</blocked>
+            <bylists>by blocklists</bylists>
+            <permin>packets/min</permin>
+            <peak>peak</peak>
+            <min>/min</min>
+            <ago24>24h ago</ago24>
+            <now>now</now>
+            <since>Data since</since>
+            <nodata>No data yet: the graph fills in within a few minutes.</nodata>
+        </translations>
+    </attacks>
+</metadata>
