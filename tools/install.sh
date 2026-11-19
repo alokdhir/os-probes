@@ -29,7 +29,7 @@
 #
 # Files go where the package would put them (src/ -> /usr/local). The list of installed files is kept
 # in /usr/local/etc/attacks.files, so an update removes files that are gone from the new version.
-# Health's cron job picks the graph up within a minute; nothing needs restarting.
+# Health's cron job picks the graph up within a minute; configd is restarted for the widget's lists.
 
 set -e
 
@@ -62,5 +62,10 @@ while read -r f; do
 done < "$NEW"
 install -o root -g wheel -m 644 "$NEW" "$MANIFEST"
 rm -f "$NEW"
+chmod 755 "$PREFIX/opnsense/scripts/attacks/top.py"
+
+# the ACL is cached, and configd reads its actions at start
+rm -f /var/lib/php/tmp/opnsense_acl_cache.json
+service configd restart >/dev/null
 
 echo "Attacks installed. The graph appears in Reporting -> Health within a minute or two."

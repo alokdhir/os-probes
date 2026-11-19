@@ -34,7 +34,7 @@ export default class Attacks extends BaseWidget {
     }
 
     getGridOptions() {
-        return {sizeToContent: 250, w: 4, minW: 2};
+        return {sizeToContent: 650, w: 4, minW: 2};
     }
 
     getMarkup() {
@@ -46,6 +46,15 @@ export default class Attacks extends BaseWidget {
                     .attacks-widget .aw-axis { display: flex; justify-content: space-between; color: #888; font-size: 10px; }
                     .attacks-widget .aw-axis span:last-child { text-align: right; }
                     .attacks-widget .aw-key { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; }
+                    .attacks-widget .aw-title { font-weight: bold; font-size: 12px; margin: 10px 0 2px; }
+                    .attacks-widget .aw-row { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; border-top: 1px solid rgba(128,128,128,0.2); font-size: 12px; }
+                    .attacks-widget .aw-main { flex: 1; min-width: 0; }
+                    .attacks-widget .aw-main > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                    .attacks-widget .aw-sub { color: #888; font-size: 11px; }
+                    .attacks-widget .aw-val { white-space: nowrap; }
+                    .attacks-widget .aw-val, .attacks-widget .aw-val * { text-align: right; }
+                    .attacks-widget .aw-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 16px; }
+                    .attacks-widget .aw-tag { font-size: 10px; padding: 0 4px; border-radius: 3px; margin-left: 4px; color: #fff; }
                 </style>
                 <div class="aw-head">
                     <strong>${this.translations.last24}</strong>
@@ -57,12 +66,30 @@ export default class Attacks extends BaseWidget {
                 </div>
                 <div class="aw-axis"><span>${this.translations.ago24}</span><span>${this.translations.now}</span></div>
                 <div id="attacks-w-note" style="font-size: 12px"></div>
+                <div id="attacks-w-top"></div>
             </div>
         `);
     }
 
     static count(n) {
         return Math.round(n).toLocaleString();
+    }
+
+    static esc(s) {
+        // the API's answer arrives HTML-escaped by core (&amp;): decode once, then escape
+        const plain = s == null ? '' : String(s).includes('&') ? $('<textarea/>').html(String(s)).text() : String(s);
+        return plain.replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
+    }
+
+    // tcp/23, or icmp
+    static port(r) {
+        return Attacks.esc(r.port ? `${r.proto}/${r.port}` : r.proto);
+    }
+
+    // one entry: text (and a grey second line) on the left, a number on the right
+    row(main, sub, val) {
+        return `<div class="aw-row"><div class="aw-main"><div>${main}</div>${sub ? `<div class="aw-sub">${sub}</div>` : ''}</div>`
+            + `<div class="aw-val">${val}</div></div>`;
     }
 
     async onMarkupRendered() {
@@ -94,6 +121,36 @@ export default class Attacks extends BaseWidget {
     }
 
     async onWidgetTick() {
+        await this.updateChart();
+        await this.updateTop();
+    }
+
+    // the ports and sources with the most blocked packets, from the firewall log (logged rules only)
+    async updateTop() {
+        const d = await this.ajaxCall('/api/attacks/report/top');
+        if (!d || d.error || !this.dataChanged('attacks-top', d)) {
+            return;
+        }
+        if (!d.logged) {
+            $('#attacks-w-top').html(`<div class="aw-sub" style="margin-top: 8px">${this.translations.nolog}</div>`);
+            return;
+        }
+        const ports = d.ports.map(r => this.row(
+            (r.service ? `${Attacks.esc(r.service)} <span class="aw-sub">${Attacks.port(r)}</span>` : Attacks.port(r)),
+            `${Attacks.count(r.sources)} ${r.sources === 1 ? this.translations.source : this.translations.sources}`,
+            Attacks.count(r.packets)));
+        const sources = d.sources.map(r => this.row(
+            Attacks.esc(r.ip) + (r.blocklist ? `<span class="aw-tag" style="background:${this.colors.blocklist[0]}">${this.translations.listed}</span>` : ''),
+            `${Attacks.count(r.ports)} ${r.ports === 1 ? this.translations.port : this.translations.ports} · ${this.translations.mostly} ${Attacks.port(r.top)}`,
+            Attacks.count(r.packets)));
+        $('#attacks-w-top').html(
+            `<div class="aw-cols">`
+            + `<div><div class="aw-title">${this.translations.topports}</div>${ports.join('')}</div>`
+            + `<div><div class="aw-title">${this.translations.topsources}</div>${sources.join('')}</div>`
+            + `</div><div class="aw-sub" style="margin-top: 4px">${this.translations.fromlog}</div>`);
+    }
+
+    async updateChart() {
         const list = await this.ajaxCall('/api/diagnostics/systemhealth/get_rrd_list');
         const wans = list?.data?.attacks || [];
         if (!wans.length) {

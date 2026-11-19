@@ -5,6 +5,7 @@
         <endpoints>
             <endpoint>/api/diagnostics/systemhealth/get_rrd_list</endpoint>
             <endpoint>/api/diagnostics/systemhealth/get_system_health/*</endpoint>
+            <endpoint>/api/attacks/report/top</endpoint>
         </endpoints>
         <translations>
             <title>Attacks</title>
@@ -19,6 +20,16 @@
             <ago24>24h ago</ago24>
             <now>now</now>
             <since>Data since</since>
+            <topports>Top ports</topports>
+            <topsources>Top sources</topsources>
+            <source>source</source>
+            <sources>sources</sources>
+            <port>port</port>
+            <ports>ports</ports>
+            <mostly>mostly</mostly>
+            <listed>blocklist</listed>
+            <fromlog>Packets blocked by rules that log, from the firewall log.</fromlog>
+            <nolog>Nothing blocked on the WAN in the firewall log: is logging of the default deny rule turned off?</nolog>
             <nodata>No data yet: the graph fills in within a few minutes.</nodata>
         </translations>
     </attacks>

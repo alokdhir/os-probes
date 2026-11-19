@@ -46,5 +46,7 @@ while read -r f; do
     rm -f "$PREFIX/$f"
 done < "$MANIFEST"
 rm -f "$MANIFEST"
+rm -f /var/lib/php/tmp/opnsense_acl_cache.json
+service configd restart >/dev/null
 
 echo "Attacks removed. Its history is still in /var/db/rrd/*-attacks.rrd; delete it to remove the graph."

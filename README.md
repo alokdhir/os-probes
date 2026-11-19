@@ -9,9 +9,16 @@ The blocklist line is part of the "all" line, so the gap between the two is what
 
 A WAN is any enabled interface with a gateway set, or an address obtained from the provider (DHCP, DHCPv6, PPPoE and the like). Each WAN gets its own graph.
 
-The plugin has no settings and no page of its own. It adds a collector and a graph type to Health, and Health's own cron job runs them every minute. Health keeps the history: per minute for 20 hours, per 5 minutes for 60 hours, hourly for 77 days and daily for about 6 years. The graph shows packets per minute.
+The plugin has no settings and no page of its own. It adds a collector and a graph type to Health, and Health's own cron job runs them every minute; and a small API (`/api/attacks/report/top`) for the widget's lists. Health keeps the history: per minute for 20 hours, per 5 minutes for 60 hours, hourly for 77 days and daily for about 6 years. The graph shows packets per minute.
 
 The **Attacks** dashboard widget shows the last 24 hours from Health's 5-minute history: both lines as filled areas, the day's totals and the peak rate, with several WANs added together. Hover for the rate at any time.
+
+Under the graph, two lists from the last 24 hours of the firewall log:
+
+- **Top ports**: the ports (or protocols, such as ICMP) with the most packets blocked coming in on a WAN, with the service's name and how many sources tried them.
+- **Top sources**: the addresses with the most packets blocked, how many ports each tried and the one it tried most, tagged **blocklist** when a blocklist rule blocked it.
+
+The lists only see rules that log. OPNsense's default deny rule logs unless "Log packets that are blocked by the default rule" is turned off, so the lists usually cover most of the "all" line, but not all of it. They read the last two days of `/var/log/filter/` (about a second for a million lines); configd keeps the answer for a minute.
 
 ## How it counts
 

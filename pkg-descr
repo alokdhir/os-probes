@@ -4,7 +4,8 @@ other counts those blocked by rules whose source is a blocklist, such as
 Spamhaus DROP loaded into a URL Table alias.
 
 It adds no settings and no page of its own; an Attacks dashboard widget shows
-the last 24 hours. A WAN is any enabled interface with a gateway
+the last 24 hours, with the ports and sources blocked most often (from the
+firewall log). A WAN is any enabled interface with a gateway
 or an address obtained from the provider (DHCP, PPPoE and the like). A
 blocklist rule is an enabled block or reject rule, inbound, on that interface,
 whose source is an alias filled from a URL (URL, URL Table or URL Table JSON).
