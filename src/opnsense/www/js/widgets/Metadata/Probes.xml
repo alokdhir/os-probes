@@ -1,14 +1,14 @@
 <metadata>
-    <attacks>
-        <filename>Attacks.js</filename>
+    <probes>
+        <filename>Probes.js</filename>
         <link>/ui/diagnostics/systemhealth</link>
         <endpoints>
             <endpoint>/api/diagnostics/systemhealth/get_rrd_list</endpoint>
             <endpoint>/api/diagnostics/systemhealth/get_system_health/*</endpoint>
-            <endpoint>/api/attacks/report/top</endpoint>
+            <endpoint>/api/probes/report/top</endpoint>
         </endpoints>
         <translations>
-            <title>Attacks</title>
+            <title>Probes</title>
             <last24>Last 24 hours</last24>
             <all>blocked</all>
             <blocklist>by blocklists</blocklist>
@@ -32,5 +32,5 @@
             <nolog>Nothing blocked on the WAN in the firewall log: is logging of the default deny rule turned off?</nolog>
             <nodata>No data yet: the graph fills in within a few minutes.</nodata>
         </translations>
-    </attacks>
+    </probes>
 </metadata>

@@ -23,22 +23,22 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-# Remove Attacks from the OPNsense box. Run as root:
+# Remove Probes from the OPNsense box. Run as root:
 #   sh tools/uninstall.sh
-# Removes the files listed in /usr/local/etc/attacks.files (written by install.sh). The graph's history
-# (/var/db/rrd/*-attacks.rrd) is kept; delete it to remove the graph from Health too.
+# Removes the files listed in /usr/local/etc/probes.files (written by install.sh). The graph's history
+# (/var/db/rrd/*-probes.rrd) is kept; delete it to remove the graph from Health too.
 
 set -e
 
 PREFIX=/usr/local
-MANIFEST=$PREFIX/etc/attacks.files
+MANIFEST=$PREFIX/etc/probes.files
 
 if [ "$(id -u)" != 0 ]; then
     echo "run as root (or with sudo)" >&2
     exit 1
 fi
 if [ ! -f "$MANIFEST" ]; then
-    echo "Attacks is not installed (no $MANIFEST)" >&2
+    echo "Probes is not installed (no $MANIFEST)" >&2
     exit 1
 fi
 
@@ -49,4 +49,4 @@ rm -f "$MANIFEST"
 rm -f /var/lib/php/tmp/opnsense_acl_cache.json
 service configd restart >/dev/null
 
-echo "Attacks removed. Its history is still in /var/db/rrd/*-attacks.rrd; delete it to remove the graph."
+echo "Probes removed. Its history is still in /var/db/rrd/*-probes.rrd; delete it to remove the graph."

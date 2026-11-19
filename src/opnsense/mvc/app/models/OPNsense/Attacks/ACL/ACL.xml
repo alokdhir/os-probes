@@ -1,8 +1,0 @@
-<acl>
-    <page-reporting-attacks>
-        <name>Reporting: Attacks</name>
-        <patterns>
-            <pattern>api/attacks/*</pattern>
-        </patterns>
-    </page-reporting-attacks>
-</acl>

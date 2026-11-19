@@ -1,9 +1,9 @@
-Attacks adds a graph to Reporting, Health: packets blocked coming in on each
+Probes adds a graph to Reporting, Health: packets blocked coming in on each
 WAN interface, per minute, as two lines. One counts every blocked packet; the
 other counts those blocked by rules whose source is a blocklist, such as
 Spamhaus DROP loaded into a URL Table alias.
 
-It adds no settings and no page of its own; an Attacks dashboard widget shows
+It adds no settings and no page of its own; an Probes dashboard widget shows
 the last 24 hours, with the ports and sources blocked most often (from the
 firewall log). A WAN is any enabled interface with a gateway
 or an address obtained from the provider (DHCP, PPPoE and the like). A

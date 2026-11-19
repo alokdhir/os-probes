@@ -1,6 +1,6 @@
-# os-attacks
+# os-probes
 
-An OPNsense plugin that graphs the packets blocked coming in on each WAN interface, as two lines, in **Reporting ▸ Health ▸ Attacks** and in a dashboard widget.
+An OPNsense plugin that graphs the packets blocked coming in on each WAN interface, as two lines, in **Reporting ▸ Health ▸ Probes** and in a dashboard widget.
 
 - **all**: every packet blocked coming in on that interface. This is the counter behind the "in block" series on Health's Packets graph, shown here for comparison.
 - **blocklist**: the packets blocked by blocklist rules. A blocklist rule is an enabled block or reject rule, inbound (or both directions), on that interface (or floating), whose source is an alias filled from a URL: type URL, URL Table or URL Table (JSON). For example, [Spamhaus DROP](https://docs.opnsense.org/manual/how-tos/drop.html) loaded into a URL Table alias.
@@ -9,9 +9,9 @@ The blocklist line is part of the "all" line, so the gap between the two is what
 
 A WAN is any enabled interface with a gateway set, or an address obtained from the provider (DHCP, DHCPv6, PPPoE and the like). Each WAN gets its own graph.
 
-The plugin has no settings and no page of its own. It adds a collector and a graph type to Health, and Health's own cron job runs them every minute; and a small API (`/api/attacks/report/top`) for the widget's lists. Health keeps the history: per minute for 20 hours, per 5 minutes for 60 hours, hourly for 77 days and daily for about 6 years. The graph shows packets per minute.
+The plugin has no settings and no page of its own. It adds a collector and a graph type to Health, and Health's own cron job runs them every minute; and a small API (`/api/probes/report/top`) for the widget's lists. Health keeps the history: per minute for 20 hours, per 5 minutes for 60 hours, hourly for 77 days and daily for about 6 years. The graph shows packets per minute.
 
-The **Attacks** dashboard widget shows the last 24 hours from Health's 5-minute history: both lines as filled areas, the day's totals and the peak rate, with several WANs added together. Hover for the rate at any time.
+The **Probes** dashboard widget shows the last 24 hours from Health's 5-minute history: both lines as filled areas, the day's totals and the peak rate, with several WANs added together. Hover for the rate at any time.
 
 Under the graph, two lists from the last 24 hours of the firewall log:
 
@@ -29,18 +29,18 @@ Both lines are pf's own running totals, turned into rates by the graph (RRD `DER
 
 pf resets a rule's counters every time the rules are reloaded (when you apply a firewall change, for example). The graph records that minute as unknown, so a reset shows as a one-minute gap in the blocklist line, not a spike or a dip.
 
-Not every blocked packet is an attack: a few are late packets from connections that have already closed. On a typical connection they are a few percent; the rest are port scans and login attempts.
+Most blocked packets are port scans and login attempts. A few are not: late packets from connections that have already closed, and peer-to-peer VPNs (NetBird, Tailscale) trying a port the router didn't open for them, which is how they look for a direct path.
 
 ## Install
 
-From a package repository that carries it (`os-attacks`), or for development, from this repository over SSH:
+From a package repository that carries it (`os-probes`), or for development, from this repository over SSH:
 
 ```sh
 ROUTER=root@192.168.1.1 tools/deploy.sh              # install or update
 ROUTER=root@192.168.1.1 tools/deploy.sh uninstall    # remove
 ```
 
-Removing the plugin keeps the graph's history in `/var/db/rrd/<interface>-attacks.rrd`; delete those files to remove the graph from Health too.
+Removing the plugin keeps the graph's history in `/var/db/rrd/<interface>-probes.rrd`; delete those files to remove the graph from Health too.
 
 ## Caveats
 

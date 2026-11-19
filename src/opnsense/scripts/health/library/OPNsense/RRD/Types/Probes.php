@@ -29,16 +29,16 @@
 namespace OPNsense\RRD\Types;
 
 /**
- * One RRD per WAN interface (<interface>-attacks.rrd): packets blocked coming in, all of them and those
+ * One RRD per WAN interface (<interface>-probes.rrd): packets blocked coming in, all of them and those
  * blocked by blocklist rules. DERIVE with a minimum of 0, so a counter that goes back to zero (pf resets a
  * rule's counters whenever the rules are reloaded) leaves one unknown sample, not a spike.
  */
-class Attacks extends Base
+class Probes extends Base
 {
     protected int $ds_heartbeat = 120;
     protected int $ds_min = 0;
     protected int $ds_max = 100000000;
-    protected static string $stdfilename = '%s-attacks.rrd';
+    protected static string $stdfilename = '%s-probes.rrd';
 
     public function __construct(string $filename)
     {

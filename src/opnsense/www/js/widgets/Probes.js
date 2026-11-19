@@ -24,9 +24,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Last 24 hours of blocked packets coming in on the WAN(s), from Health's 5-minute history of os-attacks'
+// Last 24 hours of blocked packets coming in on the WAN(s), from Health's 5-minute history of os-probes'
 // graph(s): all of them, and those blocked by blocklist rules. Several WANs are added together.
-export default class Attacks extends BaseWidget {
+export default class Probes extends BaseWidget {
     constructor() {
         super();
         this.tickTimeout = 60;
@@ -39,34 +39,34 @@ export default class Attacks extends BaseWidget {
 
     getMarkup() {
         return $(`
-            <div class="attacks-widget" style="padding: 0 10px 10px; text-align: left">
+            <div class="probes-widget" style="padding: 0 10px 10px; text-align: left">
                 <style>
-                    .attacks-widget, .attacks-widget * { text-align: left; }
-                    .attacks-widget .aw-head { display: flex; flex-wrap: wrap; gap: 0 10px; align-items: baseline; margin-top: 5px; }
-                    .attacks-widget .aw-axis { display: flex; justify-content: space-between; color: #888; font-size: 10px; }
-                    .attacks-widget .aw-axis span:last-child { text-align: right; }
-                    .attacks-widget .aw-key { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; }
-                    .attacks-widget .aw-title { font-weight: bold; font-size: 12px; margin: 10px 0 2px; }
-                    .attacks-widget .aw-row { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; border-top: 1px solid rgba(128,128,128,0.2); font-size: 12px; }
-                    .attacks-widget .aw-main { flex: 1; min-width: 0; }
-                    .attacks-widget .aw-main > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-                    .attacks-widget .aw-sub { color: #888; font-size: 11px; }
-                    .attacks-widget .aw-val { white-space: nowrap; }
-                    .attacks-widget .aw-val, .attacks-widget .aw-val * { text-align: right; }
-                    .attacks-widget .aw-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 16px; }
-                    .attacks-widget .aw-tag { font-size: 10px; padding: 0 4px; border-radius: 3px; margin-left: 4px; color: #fff; }
+                    .probes-widget, .probes-widget * { text-align: left; }
+                    .probes-widget .pw-head { display: flex; flex-wrap: wrap; gap: 0 10px; align-items: baseline; margin-top: 5px; }
+                    .probes-widget .pw-axis { display: flex; justify-content: space-between; color: #888; font-size: 10px; }
+                    .probes-widget .pw-axis span:last-child { text-align: right; }
+                    .probes-widget .pw-key { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; }
+                    .probes-widget .pw-title { font-weight: bold; font-size: 12px; margin: 10px 0 2px; }
+                    .probes-widget .pw-row { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; border-top: 1px solid rgba(128,128,128,0.2); font-size: 12px; }
+                    .probes-widget .pw-main { flex: 1; min-width: 0; }
+                    .probes-widget .pw-main > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                    .probes-widget .pw-sub { color: #888; font-size: 11px; }
+                    .probes-widget .pw-val { white-space: nowrap; }
+                    .probes-widget .pw-val, .probes-widget .pw-val * { text-align: right; }
+                    .probes-widget .pw-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 16px; }
+                    .probes-widget .pw-tag { font-size: 10px; padding: 0 4px; border-radius: 3px; margin-left: 4px; color: #fff; }
                 </style>
-                <div class="aw-head">
+                <div class="pw-head">
                     <strong>${this.translations.last24}</strong>
-                    <span id="attacks-w-total" style="font-size: 12px; white-space: nowrap"></span>
-                    <span id="attacks-w-peak" style="font-size: 11px; color: #888; white-space: nowrap; margin-left: auto"></span>
+                    <span id="probes-w-total" style="font-size: 12px; white-space: nowrap"></span>
+                    <span id="probes-w-peak" style="font-size: 11px; color: #888; white-space: nowrap; margin-left: auto"></span>
                 </div>
                 <div class="canvas-container-noaspectratio" style="height: 80px; margin: 6px 0 2px">
-                    <canvas id="attacks-w-chart"></canvas>
+                    <canvas id="probes-w-chart"></canvas>
                 </div>
-                <div class="aw-axis"><span>${this.translations.ago24}</span><span>${this.translations.now}</span></div>
-                <div id="attacks-w-note" style="font-size: 12px"></div>
-                <div id="attacks-w-top"></div>
+                <div class="pw-axis"><span>${this.translations.ago24}</span><span>${this.translations.now}</span></div>
+                <div id="probes-w-note" style="font-size: 12px"></div>
+                <div id="probes-w-top"></div>
             </div>
         `);
     }
@@ -83,13 +83,13 @@ export default class Attacks extends BaseWidget {
 
     // tcp/23, or icmp
     static port(r) {
-        return Attacks.esc(r.port ? `${r.proto}/${r.port}` : r.proto);
+        return Probes.esc(r.port ? `${r.proto}/${r.port}` : r.proto);
     }
 
     // one entry: text (and a grey second line) on the left, a number on the right
     row(main, sub, val) {
-        return `<div class="aw-row"><div class="aw-main"><div>${main}</div>${sub ? `<div class="aw-sub">${sub}</div>` : ''}</div>`
-            + `<div class="aw-val">${val}</div></div>`;
+        return `<div class="pw-row"><div class="pw-main"><div>${main}</div>${sub ? `<div class="pw-sub">${sub}</div>` : ''}</div>`
+            + `<div class="pw-val">${val}</div></div>`;
     }
 
     async onMarkupRendered() {
@@ -97,7 +97,7 @@ export default class Attacks extends BaseWidget {
             all: ['rgba(54,162,235,1)', 'rgba(54,162,235,0.25)'],
             blocklist: ['rgba(255,99,71,1)', 'rgba(255,99,71,0.45)']
         };
-        this.chart = new Chart($('#attacks-w-chart')[0].getContext('2d'), {
+        this.chart = new Chart($('#probes-w-chart')[0].getContext('2d'), {
             type: 'line',
             data: {labels: [], datasets: ['blocklist', 'all'].map(k => ({
                 key: k, label: this.translations[k], data: [],
@@ -127,39 +127,39 @@ export default class Attacks extends BaseWidget {
 
     // the ports and sources with the most blocked packets, from the firewall log (logged rules only)
     async updateTop() {
-        const d = await this.ajaxCall('/api/attacks/report/top');
-        if (!d || d.error || !this.dataChanged('attacks-top', d)) {
+        const d = await this.ajaxCall('/api/probes/report/top');
+        if (!d || d.error || !this.dataChanged('probes-top', d)) {
             return;
         }
         if (!d.logged) {
-            $('#attacks-w-top').html(`<div class="aw-sub" style="margin-top: 8px">${this.translations.nolog}</div>`);
+            $('#probes-w-top').html(`<div class="pw-sub" style="margin-top: 8px">${this.translations.nolog}</div>`);
             return;
         }
         const ports = d.ports.map(r => this.row(
-            (r.service ? `${Attacks.esc(r.service)} <span class="aw-sub">${Attacks.port(r)}</span>` : Attacks.port(r)),
-            `${Attacks.count(r.sources)} ${r.sources === 1 ? this.translations.source : this.translations.sources}`,
-            Attacks.count(r.packets)));
+            (r.service ? `${Probes.esc(r.service)} <span class="pw-sub">${Probes.port(r)}</span>` : Probes.port(r)),
+            `${Probes.count(r.sources)} ${r.sources === 1 ? this.translations.source : this.translations.sources}`,
+            Probes.count(r.packets)));
         const sources = d.sources.map(r => this.row(
-            Attacks.esc(r.ip) + (r.blocklist ? `<span class="aw-tag" style="background:${this.colors.blocklist[0]}">${this.translations.listed}</span>` : ''),
-            `${Attacks.count(r.ports)} ${r.ports === 1 ? this.translations.port : this.translations.ports} · ${this.translations.mostly} ${Attacks.port(r.top)}`,
-            Attacks.count(r.packets)));
-        $('#attacks-w-top').html(
-            `<div class="aw-cols">`
-            + `<div><div class="aw-title">${this.translations.topports}</div>${ports.join('')}</div>`
-            + `<div><div class="aw-title">${this.translations.topsources}</div>${sources.join('')}</div>`
-            + `</div><div class="aw-sub" style="margin-top: 4px">${this.translations.fromlog}</div>`);
+            Probes.esc(r.ip) + (r.blocklist ? `<span class="pw-tag" style="background:${this.colors.blocklist[0]}">${this.translations.listed}</span>` : ''),
+            `${Probes.count(r.ports)} ${r.ports === 1 ? this.translations.port : this.translations.ports} · ${this.translations.mostly} ${Probes.port(r.top)}`,
+            Probes.count(r.packets)));
+        $('#probes-w-top').html(
+            `<div class="pw-cols">`
+            + `<div><div class="pw-title">${this.translations.topports}</div>${ports.join('')}</div>`
+            + `<div><div class="pw-title">${this.translations.topsources}</div>${sources.join('')}</div>`
+            + `</div><div class="pw-sub" style="margin-top: 4px">${this.translations.fromlog}</div>`);
     }
 
     async updateChart() {
         const list = await this.ajaxCall('/api/diagnostics/systemhealth/get_rrd_list');
-        const wans = list?.data?.attacks || [];
+        const wans = list?.data?.probes || [];
         if (!wans.length) {
-            $('#attacks-w-note').text(this.translations.nodata);
+            $('#probes-w-note').text(this.translations.nodata);
             return;
         }
         // detail 1: Health's 5-minute history; values are [ms, packets per second]
-        const sets = await Promise.all(wans.map(w => this.ajaxCall(`/api/diagnostics/systemhealth/get_system_health/${encodeURIComponent(w)}-attacks/1`)));
-        if (!this.dataChanged('attacks', sets)) {
+        const sets = await Promise.all(wans.map(w => this.ajaxCall(`/api/diagnostics/systemhealth/get_system_health/${encodeURIComponent(w)}-probes/1`)));
+        if (!this.dataChanged('probes', sets)) {
             return;
         }
         const since = Date.now() - 24 * 3600 * 1000;
@@ -178,21 +178,21 @@ export default class Attacks extends BaseWidget {
         }
         const times = [...new Set([...sums.all.keys(), ...sums.blocklist.keys()])].sort((a, b) => a - b);
         if (!times.length) {
-            $('#attacks-w-note').text(this.translations.nodata);
+            $('#probes-w-note').text(this.translations.nodata);
             return;
         }
         const total = k => [...sums[k].values()].reduce((t, v) => t + v * step, 0);
-        $('#attacks-w-total').html(
-            `<span class="aw-key" style="background:${this.colors.all[0]}"></span>${Attacks.count(total('all'))} ${this.translations.blocked}`
-            + ` &nbsp;<span class="aw-key" style="background:${this.colors.blocklist[0]}"></span>${Attacks.count(total('blocklist'))} ${this.translations.bylists}`);
-        $('#attacks-w-note').text(times[0] > since + 3600 * 1000 ? this.translations.since + ' '
+        $('#probes-w-total').html(
+            `<span class="pw-key" style="background:${this.colors.all[0]}"></span>${Probes.count(total('all'))} ${this.translations.blocked}`
+            + ` &nbsp;<span class="pw-key" style="background:${this.colors.blocklist[0]}"></span>${Probes.count(total('blocklist'))} ${this.translations.bylists}`);
+        $('#probes-w-note').text(times[0] > since + 3600 * 1000 ? this.translations.since + ' '
             + new Date(times[0]).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'}) : '');
         this.chart.data.labels = times;
         this.chart.data.datasets.forEach(ds => {
             ds.data = times.map(t => (sums[ds.key].get(t) || 0) * 60);
         });
         const peak = Math.max(...this.chart.data.datasets.flatMap(ds => ds.data));
-        $('#attacks-w-peak').text(`${this.translations.peak} ${peak.toFixed(peak < 10 ? 1 : 0)}${this.translations.min}`);
+        $('#probes-w-peak').text(`${this.translations.peak} ${peak.toFixed(peak < 10 ? 1 : 0)}${this.translations.min}`);
         this.chart.update();
     }
 

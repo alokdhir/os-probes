@@ -26,7 +26,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-namespace OPNsense\Attacks\Api;
+namespace OPNsense\Probes\Api;
 
 use OPNsense\Base\ApiControllerBase;
 use OPNsense\Core\Backend;
@@ -39,7 +39,7 @@ class ReportController extends ApiControllerBase
      */
     public function topAction()
     {
-        $data = json_decode((new Backend())->configdpRun('attacks top', ['5']) ?? '', true);
+        $data = json_decode((new Backend())->configdpRun('probes top', ['5']) ?? '', true);
         return is_array($data) ? $data : ['error' => 'no response'];
     }
 }

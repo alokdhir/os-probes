@@ -23,18 +23,18 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-# Install or update Attacks on the OPNsense box itself, from a copy of this repository. Run as root:
+# Install or update Probes on the OPNsense box itself, from a copy of this repository. Run as root:
 #   sh tools/install.sh
 # (tools/uninstall.sh removes it.)
 #
 # Files go where the package would put them (src/ -> /usr/local). The list of installed files is kept
-# in /usr/local/etc/attacks.files, so an update removes files that are gone from the new version.
+# in /usr/local/etc/probes.files, so an update removes files that are gone from the new version.
 # Health's cron job picks the graph up within a minute; configd is restarted for the widget's lists.
 
 set -e
 
 PREFIX=/usr/local
-MANIFEST=$PREFIX/etc/attacks.files
+MANIFEST=$PREFIX/etc/probes.files
 SRC=$(cd "$(dirname "$0")/../src" && pwd)
 
 if [ "$(id -u)" != 0 ]; then
@@ -62,10 +62,10 @@ while read -r f; do
 done < "$NEW"
 install -o root -g wheel -m 644 "$NEW" "$MANIFEST"
 rm -f "$NEW"
-chmod 755 "$PREFIX/opnsense/scripts/attacks/top.py"
+chmod 755 "$PREFIX/opnsense/scripts/probes/top.py"
 
 # the ACL is cached, and configd reads its actions at start
 rm -f /var/lib/php/tmp/opnsense_acl_cache.json
 service configd restart >/dev/null
 
-echo "Attacks installed. The graph appears in Reporting -> Health within a minute or two."
+echo "Probes installed. The graph appears in Reporting -> Health within a minute or two."

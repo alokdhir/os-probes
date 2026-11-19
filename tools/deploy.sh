@@ -27,16 +27,16 @@
 #   ROUTER=admin@192.168.1.1 tools/deploy.sh              install or update
 #   ROUTER=admin@192.168.1.1 tools/deploy.sh uninstall    remove (runs tools/uninstall.sh)
 # Runs the installer with sudo (it asks for the password as usual) unless ROUTER is root@.
-# Extra ssh options: ATTACKS_SSH="ssh -i ~/.ssh/key".
+# Extra ssh options: PROBES_SSH="ssh -i ~/.ssh/key".
 
 set -e
 cd "$(dirname "$0")/.."
 : "${ROUTER:?set ROUTER=user@router}"
-SSH=${ATTACKS_SSH:-ssh}
+SSH=${PROBES_SSH:-ssh}
 case "$ROUTER" in root@*) SUDO= ;; *) SUDO=sudo ;; esac
 [ -t 0 ] && TTY=-t || TTY=
 
-DIR=$($SSH "$ROUTER" mktemp -d /tmp/attacks.XXXXXX)
+DIR=$($SSH "$ROUTER" mktemp -d /tmp/probes.XXXXXX)
 COPYFILE_DISABLE=1 tar --exclude .DS_Store -cf - src tools/install.sh tools/uninstall.sh | $SSH "$ROUTER" tar -C "$DIR" -xf -
 [ "$1" = uninstall ] && SCRIPT=uninstall.sh || SCRIPT=install.sh
 $SSH $TTY "$ROUTER" "sh -c '$SUDO sh $DIR/tools/$SCRIPT; rc=\$?; rm -rf $DIR; exit \$rc'"  # root's shell is csh

@@ -36,7 +36,7 @@ use OPNsense\Firewall\Filter;
  * Packets blocked coming in on each WAN interface: all of them, and those blocked by rules whose source is a
  * blocklist (an alias filled from a URL). Both are pf's running totals; the RRD turns them into rates.
  */
-class Attacks extends Base
+class Probes extends Base
 {
     /* alias types whose content is downloaded: what makes an alias a blocklist */
     private const LIST_TYPES = ['url', 'urltable', 'urljson'];

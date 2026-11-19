@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <systemhealth>
-    <file-match>-attacks$</file-match>
-    <title>Attacks - packets blocked coming in</title>
+    <file-match>-probes$</file-match>
+    <title>Probes - packets blocked coming in</title>
     <y-axis_label>Packets/minute</y-axis_label>
     <axis_formats>
         <y>metric</y>

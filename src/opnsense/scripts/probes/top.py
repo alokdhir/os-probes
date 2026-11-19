@@ -45,7 +45,7 @@ CONFIG = '/conf/config.xml'
 LOGS = '/var/log/filter/filter_*.log'
 HOURS = 24
 
-# the same tests as the Health collector (Stats/Attacks.php)
+# the same tests as the Health collector (Stats/Probes.php)
 LIST_TYPES = {'url', 'urltable', 'urljson'}
 DYNAMIC = {'dhcp', 'dhcp6', 'pppoe', 'pptp', 'l2tp', 'slaac', '6rd', '6to4'}
 

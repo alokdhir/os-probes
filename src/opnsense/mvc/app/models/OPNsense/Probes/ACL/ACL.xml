@@ -1,0 +1,8 @@
+<acl>
+    <page-reporting-probes>
+        <name>Reporting: Probes</name>
+        <patterns>
+            <pattern>api/probes/*</pattern>
+        </patterns>
+    </page-reporting-probes>
+</acl>
