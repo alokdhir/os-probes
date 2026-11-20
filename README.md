@@ -116,7 +116,7 @@ src/opnsense/www/js/probes/world.json              country outlines for the map
 
 ## See also
 
-[**Loupe**](https://github.com/alokdhir/os-loupe) is Probes' opposite. Probes shows the traffic your firewall stops, coming in from the internet. Loupe shows the traffic it lets through, going out: which device on your network talked to which site or service, how much and when.
+[**Loupe**](https://github.com/alokdhir/os-loupe) is Probes' opposite. Probes shows the traffic coming in from the internet that your firewall stops. Loupe shows the traffic going out, and from which device on your network: which site or service each one talked to, how much and when.
 
 ## License
 
