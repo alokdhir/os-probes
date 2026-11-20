@@ -303,7 +303,7 @@ POSSIBILITY OF SUCH DAMAGE.
                     ['{{ lang._('Registered on') }}', [w.registered, w.changed ? `{{ lang._('changed') }} ${w.changed}` : ''].filter(Boolean).join(' · ')],
                     ['{{ lang._('Remarks') }}', w.description !== w.owner ? w.description : ''],
                 ].filter(r => r[1] && String(r[1]).trim()).map(r => [r[0], esc(r[1])]);
-                rows.push(['{{ lang._('Looked up') }}', `<a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.registry)}</a>`
+                rows.push(['{{ lang._('From') }}', `<a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.registry)}</a>`
                     + `<span class="probes-note"> · ${esc(when(w.fetched))}</span>`]);
                 target.hide().html(`<table class="table table-condensed probes-whois-table"><tbody>`
                     + rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join('')
