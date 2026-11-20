@@ -144,9 +144,9 @@ def text(node, path):
     return (found.text or '').strip() if found is not None else ''
 
 
-def read_config():
-    """ :return: (WAN devices, {uuid: name} of the blocklist rules on them) """
-    root = ET.parse(CONFIG).getroot()
+def wan_interfaces(root=None):
+    """ {interface name (wan, opt1...): device (igb0...)}: enabled, with a gateway or an address from the provider """
+    root = root if root is not None else ET.parse(CONFIG).getroot()
     wans = {}
     interfaces = root.find('interfaces')
     for node in (interfaces if interfaces is not None else []):
@@ -155,6 +155,13 @@ def read_config():
         if text(node, 'gateway') or text(node, 'gatewayv6') or \
                 text(node, 'ipaddr') in DYNAMIC or text(node, 'ipaddrv6') in DYNAMIC:
             wans[node.tag] = text(node, 'if')
+    return wans
+
+
+def read_config():
+    """ :return: (WAN devices, {uuid: name} of the blocklist rules on them) """
+    root = ET.parse(CONFIG).getroot()
+    wans = wan_interfaces(root)
 
     lists = {
         text(alias, 'name') for alias in root.iterfind('OPNsense/Firewall/Alias/aliases/alias')

@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
     .probes-whois-btn { float: right; margin-left: 12px; }
     .probes-whois-table { width: auto; margin-bottom: 14px; }
     .probes-whois-table th { color: #888; font-weight: normal; padding-right: 16px !important; white-space: nowrap; }
-    .probes-replies { color: #888; border-bottom: 1px dotted #888; cursor: help; }
+    .probes-hint { color: #888; border-bottom: 1px dotted #888; cursor: help; }
     .probes-section { padding: 0 15px 10px; }
     .probes-section h3 { font-size: 14px; font-weight: bold; margin: 12px 0 6px; }
     #probes-tab-map h3 { margin-top: 6px; }
@@ -73,6 +73,9 @@ POSSIBILITY OF SUCH DAMAGE.
             return plain.replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
         }
         const num = n => Math.round(n || 0).toLocaleString();
+        const compact = n => new Intl.NumberFormat([], {notation: 'compact', maximumFractionDigits: 1}).format(n || 0);
+        const bytes = n => { let i = 0; n = n || 0; while (n >= 1000 && i < 4) { n /= 1000; i++; }
+            return `${n.toFixed(n < 10 && i ? 1 : 0)} ${['B', 'KB', 'MB', 'GB', 'TB'][i]}`; };
         /* a pill per blocklist that blocked the source (just "blocklist" when the name isn't known) */
         const listTags = names => (names && names.length ? names : ['{{ lang._('blocklist') }}'])
             .map(n => `<span class="probes-tag">${esc(n)}</span>`).join('');
@@ -196,8 +199,17 @@ POSSIBILITY OF SUCH DAMAGE.
                 + ` &nbsp;· <strong>${num(s.sources)}</strong> {{ lang._('sources') }}`);
             if (s.replies) {
                 const who = (s.reply_sources || []).map(r => `${r.ip}${r.country ? ' (' + countryName(r.country) + ')' : ''}: ${num(r.packets)}`);
-                $('#probes-totals').append(` &nbsp;· <span class="probes-replies" title="${esc('{{ lang._('Blocked packets from addresses your network had just connected to: late replies to connections that already closed, or a peer-to-peer VPN trying ports. Most:') }}\n' + who.join('\n'))}">`
+                $('#probes-totals').append(` &nbsp;· <span class="probes-hint" title="${esc('{{ lang._('Blocked packets from addresses your network had just connected to: late replies to connections that already closed, or a peer-to-peer VPN trying ports. Most:') }}\n' + who.join('\n'))}">`
                     + `${num(s.replies)} {{ lang._('late replies not counted') }}</span>`);
+            }
+            /* how the probing compares with everything that came in on the WAN (from Health's graphs) */
+            if (s.wan && s.wan.packets_in) {
+                const pct = 100 * s.packets / s.wan.packets_in;
+                const tip = '{{ lang._('Everything that came in on the WAN in this period, from the Health graphs:') }}\n'
+                    + `{{ lang._('allowed') }}: ${num(s.wan.packets_passed)} {{ lang._('packets') }}, ${bytes(s.wan.bytes_passed)}\n`
+                    + `{{ lang._('blocked by any rule') }}: ${num(s.wan.packets_blocked)} {{ lang._('packets') }}, ${bytes(s.wan.bytes_blocked)}`;
+                $('#probes-totals').append(` &nbsp;· <span class="probes-hint" title="${esc(tip)}">`
+                    + `${pct < 0.01 ? '<0.01' : pct.toFixed(pct < 1 ? 2 : 1)}% {{ lang._('of') }} ${compact(s.wan.packets_in)} {{ lang._('packets in') }}</span>`);
             }
             const note = [];
             if (s.data_since && s.data_since > s.since + 3600) note.push('{{ lang._('Data since') }} ' + when(s.data_since));

@@ -39,11 +39,12 @@ import json
 import os
 import socket
 import sqlite3
+import subprocess
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import connect, country, period_start, hits_table, DAYS, PERIODS  # noqa: E402
+from common import connect, country, period_start, hits_table, wan_interfaces, DAYS, PERIODS  # noqa: E402
 
 TABLE = 'hits'          # the rows the current request's period is added up from (see since())
 
@@ -138,7 +139,8 @@ def summary(db, hours):
     geo = db.execute("SELECT value FROM meta WHERE key = 'geo'").fetchone()
     return {'since': start, 'data_since': first, 'packets': packets, 'listed': listed, 'sources': sources,
             'geoip': bool(geo and geo[0]), 'countries': countries, 'step': step, 'series': points,
-            'ports': ports_query(db, start), 'top_sources': sources_query(db, start), **replies(db, start)}
+            'ports': ports_query(db, start), 'top_sources': sources_query(db, start), **replies(db, start),
+            'wan': wan_volume(start)}
 
 
 def replies(db, start):
@@ -148,6 +150,56 @@ def replies(db, start):
         'SELECT ip, sum(packets) n FROM replies WHERE hour >= ? GROUP BY ip ORDER BY n DESC LIMIT 5',
         (start - start % 3600,))]
     return {'replies': total, 'reply_sources': top}
+
+
+RRD = '/var/db/rrd/%s-%s.rrd'      # Health's graphs: per interface, packets and bytes, passed and blocked
+
+
+def rrd_rows(path, start):
+    """ an RRD's counters since `start` as {row time: {name: total over the row}} (they're per-second rates) """
+    try:
+        out = subprocess.run(['/usr/local/bin/rrdtool', 'fetch', path, 'AVERAGE', '-s', str(start), '-e', 'now'],
+                             capture_output=True, text=True, timeout=10).stdout.splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if not out:
+        return None
+    names = out[0].split()
+    rows = [(int(t), v.split()) for t, v in (line.split(':', 1) for line in out[1:] if ':' in line)]
+    if len(rows) < 2:
+        return None
+    step = rows[1][0] - rows[0][0]
+    # a row covers the step that ends at its time
+    return {t: {n: float(v) * step for n, v in zip(names, values) if 'nan' not in v} for t, values in rows if t > start}
+
+
+def wan_volume(start):
+    """ everything that came in on the WANs since `start`, from Health's graphs: packets and bytes, passed and
+        blocked (by any rule, logged or not); None when Health keeps no graphs for them """
+    try:
+        wans = wan_interfaces()
+    except Exception:
+        return None
+    total, found = dict.fromkeys(('packets_passed', 'packets_blocked', 'bytes_passed', 'bytes_blocked'), 0.0), False
+    for name in wans:
+        packets, traffic = (rrd_rows(RRD % (name, kind), start) if os.path.exists(RRD % (name, kind)) else None
+                            for kind in ('packets', 'traffic'))
+        if packets is None:
+            continue
+        found = True
+        # a counter that reset (a reboot) shows as a wrap of a 32-bit counter: 2^32 packets in one row, more than
+        # any link carries; leave those rows out, of the bytes too
+        bad = {t for t, row in packets.items() if any(v >= 2 ** 31 for v in row.values())}
+        for unit, rows in (('packets', packets), ('bytes', traffic or {})):
+            for t, row in rows.items():
+                if t not in bad:
+                    total[unit + '_passed'] += row.get('inpass', 0) + row.get('inpass6', 0)
+                    total[unit + '_blocked'] += row.get('inblock', 0) + row.get('inblock6', 0)
+    if not found:
+        return None
+    total = {k: int(v) for k, v in total.items()}
+    total['packets_in'] = total['packets_passed'] + total['packets_blocked']
+    return total
 
 
 def series(db, start):
@@ -171,7 +223,7 @@ def fast_summary(db, hours, agg):
         'ports': [port_row(*r) for r in db.execute(AGG_PORTS + 'WHERE period = ? ORDER BY packets DESC LIMIT 5', (hours,))],
         'top_sources': [agg_source_row(*r) for r in db.execute(
             AGG_SOURCES + 'WHERE period = ? ORDER BY packets DESC LIMIT 5', (hours,))],
-        **replies(db, start)
+        **replies(db, start), 'wan': wan_volume(start)
     }
 
 
