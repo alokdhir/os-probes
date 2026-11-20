@@ -29,7 +29,7 @@
 #
 # Files go where the package would put them (src/ -> /usr/local). The list of installed files is kept
 # in /usr/local/etc/probes.files, so an update removes files that are gone from the new version.
-# Health's cron job picks the graph up within a minute; configd is restarted for the widget's lists.
+# configd and cron are restarted, so the collector starts within a minute.
 
 set -e
 
@@ -62,10 +62,15 @@ while read -r f; do
 done < "$NEW"
 install -o root -g wheel -m 644 "$NEW" "$MANIFEST"
 rm -f "$NEW"
-chmod 755 "$PREFIX/opnsense/scripts/probes/top.py"
+chmod 755 "$PREFIX/opnsense/scripts/probes/collect.py" "$PREFIX/opnsense/scripts/probes/query.py"
 
-# the ACL is cached, and configd reads its actions at start
-rm -f /var/lib/php/tmp/opnsense_acl_cache.json
+# the menu and ACL are cached, configd reads its actions at start, and the collector's cron job comes from
+# plugins.inc.d/probes.inc
+rm -f /var/lib/php/tmp/opnsense_menu_cache.xml /var/lib/php/tmp/opnsense_acl_cache.json
 service configd restart >/dev/null
+for i in 1 2 3 4 5 6 7 8 9 10; do        # configd takes a moment to come back
+    configctl cron restart >/dev/null 2>&1 && break
+    sleep 1
+done
 
-echo "Probes installed. The graph appears in Reporting -> Health within a minute or two."
+echo "Probes installed: Reporting -> Probes. The first run reads up to 30 days of firewall log (a minute or so)."

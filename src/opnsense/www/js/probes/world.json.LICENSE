@@ -1,0 +1,3 @@
+Country outlines: Natural Earth, 1:110m Admin 0 - Countries (v5.1.2), https://www.naturalearthdata.com/
+Natural Earth is in the public domain. Reduced for os-probes: Antarctica removed, coordinates rounded to
+0.1 degree, only the ISO 3166-1 alpha-2 code (ISO_A2_EH) and name kept.

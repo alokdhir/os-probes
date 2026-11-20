@@ -1,0 +1,5 @@
+<menu>
+    <Reporting>
+        <Probes VisibleName="Probes" cssClass="fa fa-crosshairs fa-fw" url="/ui/probes/"/>
+    </Reporting>
+</menu>

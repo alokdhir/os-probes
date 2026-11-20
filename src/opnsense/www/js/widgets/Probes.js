@@ -24,8 +24,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Last 24 hours of blocked packets coming in on the WAN(s), from Health's 5-minute history of os-probes'
-// graph(s): all of them, and those blocked by blocklist rules. Several WANs are added together.
+// Last 24 hours of packets blocked coming in on the WAN(s), from os-probes' database (the firewall log): all of
+// them, and those blocked by blocklist rules, with the ports and sources blocked most.
 export default class Probes extends BaseWidget {
     constructor() {
         super();
@@ -83,7 +83,7 @@ export default class Probes extends BaseWidget {
 
     // tcp/23, or icmp
     static port(r) {
-        return Probes.esc(r.port ? `${r.proto}/${r.port}` : r.proto);
+        return r ? Probes.esc(r.port !== null && r.port !== undefined ? `${r.proto}/${r.port}` : r.proto) : '';
     }
 
     // one entry: text (and a grey second line) on the left, a number on the right
@@ -121,17 +121,38 @@ export default class Probes extends BaseWidget {
     }
 
     async onWidgetTick() {
-        await this.updateChart();
-        await this.updateTop();
-    }
-
-    // the ports and sources with the most blocked packets, from the firewall log (logged rules only)
-    async updateTop() {
-        const d = await this.ajaxCall('/api/probes/report/top');
-        if (!d || d.error || !this.dataChanged('probes-top', d)) {
+        const d = await this.ajaxCall('/api/probes/report/summary/24');
+        if (!d || d.error) {
+            $('#probes-w-note').text(this.translations.nodata);
             return;
         }
-        if (!d.logged) {
+        if (!this.dataChanged('probes', d)) {
+            return;
+        }
+        this.updateChart(d);
+        this.updateTop(d);
+    }
+
+    // the last 24 hours in 5-minute steps: all blocked packets, and those blocked by blocklist rules
+    updateChart(d) {
+        const perMin = d.step / 60;
+        $('#probes-w-total').html(
+            `<span class="pw-key" style="background:${this.colors.all[0]}"></span>${Probes.count(d.packets)} ${this.translations.blocked}`
+            + ` &nbsp;<span class="pw-key" style="background:${this.colors.blocklist[0]}"></span>${Probes.count(d.listed)} ${this.translations.bylists}`);
+        $('#probes-w-note').text(d.data_since && d.data_since > d.since + 3600 ? this.translations.since + ' '
+            + new Date(d.data_since * 1000).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'}) : '');
+        this.chart.data.labels = d.series.map(r => r[0] * 1000);
+        this.chart.data.datasets.forEach(ds => {
+            ds.data = d.series.map(r => (ds.key === 'all' ? r[1] : r[2]) / perMin);
+        });
+        const peak = Math.max(0, ...this.chart.data.datasets.flatMap(ds => ds.data));
+        $('#probes-w-peak').text(`${this.translations.peak} ${peak.toFixed(peak < 10 ? 1 : 0)}${this.translations.min}`);
+        this.chart.update();
+    }
+
+    // the ports and sources with the most blocked packets
+    updateTop(d) {
+        if (!d.packets) {
             $('#probes-w-top').html(`<div class="pw-sub" style="margin-top: 8px">${this.translations.nolog}</div>`);
             return;
         }
@@ -139,61 +160,16 @@ export default class Probes extends BaseWidget {
             (r.service ? `${Probes.esc(r.service)} <span class="pw-sub">${Probes.port(r)}</span>` : Probes.port(r)),
             `${Probes.count(r.sources)} ${r.sources === 1 ? this.translations.source : this.translations.sources}`,
             Probes.count(r.packets)));
-        const sources = d.sources.map(r => this.row(
-            Probes.esc(r.ip) + (r.blocklist ? `<span class="pw-tag" style="background:${this.colors.blocklist[0]}">${this.translations.listed}</span>` : ''),
+        const sources = d.top_sources.map(r => this.row(
+            Probes.esc(r.ip) + (r.country ? ` <span class="pw-sub">${Probes.esc(r.country)}</span>` : '')
+                + (r.blocklist ? `<span class="pw-tag" style="background:${this.colors.blocklist[0]}">${this.translations.listed}</span>` : ''),
             `${Probes.count(r.ports)} ${r.ports === 1 ? this.translations.port : this.translations.ports} · ${this.translations.mostly} ${Probes.port(r.top)}`,
             Probes.count(r.packets)));
         $('#probes-w-top').html(
             `<div class="pw-cols">`
             + `<div><div class="pw-title">${this.translations.topports}</div>${ports.join('')}</div>`
             + `<div><div class="pw-title">${this.translations.topsources}</div>${sources.join('')}</div>`
-            + `</div><div class="pw-sub" style="margin-top: 4px">${this.translations.fromlog}</div>`);
-    }
-
-    async updateChart() {
-        const list = await this.ajaxCall('/api/diagnostics/systemhealth/get_rrd_list');
-        const wans = list?.data?.probes || [];
-        if (!wans.length) {
-            $('#probes-w-note').text(this.translations.nodata);
-            return;
-        }
-        // detail 1: Health's 5-minute history; values are [ms, packets per second]
-        const sets = await Promise.all(wans.map(w => this.ajaxCall(`/api/diagnostics/systemhealth/get_system_health/${encodeURIComponent(w)}-probes/1`)));
-        if (!this.dataChanged('probes', sets)) {
-            return;
-        }
-        const since = Date.now() - 24 * 3600 * 1000;
-        const sums = {all: new Map(), blocklist: new Map()};
-        let step = 300;
-        for (const s of sets) {
-            step = s?.set?.step_size || step;
-            for (const ds of s?.set?.data || []) {
-                if (!sums[ds.key]) continue;
-                for (const [x, y] of ds.values) {
-                    if (x >= since && y !== null && !isNaN(y)) {
-                        sums[ds.key].set(x, (sums[ds.key].get(x) || 0) + y);
-                    }
-                }
-            }
-        }
-        const times = [...new Set([...sums.all.keys(), ...sums.blocklist.keys()])].sort((a, b) => a - b);
-        if (!times.length) {
-            $('#probes-w-note').text(this.translations.nodata);
-            return;
-        }
-        const total = k => [...sums[k].values()].reduce((t, v) => t + v * step, 0);
-        $('#probes-w-total').html(
-            `<span class="pw-key" style="background:${this.colors.all[0]}"></span>${Probes.count(total('all'))} ${this.translations.blocked}`
-            + ` &nbsp;<span class="pw-key" style="background:${this.colors.blocklist[0]}"></span>${Probes.count(total('blocklist'))} ${this.translations.bylists}`);
-        $('#probes-w-note').text(times[0] > since + 3600 * 1000 ? this.translations.since + ' '
-            + new Date(times[0]).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'}) : '');
-        this.chart.data.labels = times;
-        this.chart.data.datasets.forEach(ds => {
-            ds.data = times.map(t => (sums[ds.key].get(t) || 0) * 60);
-        });
-        const peak = Math.max(...this.chart.data.datasets.flatMap(ds => ds.data));
-        $('#probes-w-peak').text(`${this.translations.peak} ${peak.toFixed(peak < 10 ? 1 : 0)}${this.translations.min}`);
-        this.chart.update();
+            + `</div>`);
     }
 
     onWidgetClose() {

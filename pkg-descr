@@ -1,16 +1,9 @@
-Probes adds a graph to Reporting, Health: packets blocked coming in on each
-WAN interface, per minute, as two lines. One counts every blocked packet; the
-other counts those blocked by rules whose source is a blocklist, such as
-Spamhaus DROP loaded into a URL Table alias.
-
-It adds no settings and no page of its own; an Probes dashboard widget shows
-the last 24 hours, with the ports and sources blocked most often (from the
-firewall log). A WAN is any enabled interface with a gateway
-or an address obtained from the provider (DHCP, PPPoE and the like). A
-blocklist rule is an enabled block or reject rule, inbound, on that interface,
-whose source is an alias filled from a URL (URL, URL Table or URL Table JSON).
-Health keeps the history: per minute for 20 hours, then coarser for up to 6
-years.
+Probes shows who is probing your network from the internet: the packets
+blocked coming in on your WAN, from the firewall log. Reporting, Probes has a
+graph (all blocked packets, and those blocked by blocklists such as Spamhaus
+DROP), searchable lists of sources and ports, each source's detail, and a
+world map by country (from the GeoIP database OPNsense downloads for GeoIP
+aliases). A dashboard widget shows the last 24 hours. 30 days are kept.
 
 Plugin Changelog
 ================

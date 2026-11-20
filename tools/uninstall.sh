@@ -25,8 +25,8 @@
 
 # Remove Probes from the OPNsense box. Run as root:
 #   sh tools/uninstall.sh
-# Removes the files listed in /usr/local/etc/probes.files (written by install.sh). The graph's history
-# (/var/db/rrd/*-probes.rrd) is kept; delete it to remove the graph from Health too.
+# Removes the files listed in /usr/local/etc/probes.files (written by install.sh). The collected totals
+# (/var/db/probes/) are kept; delete that directory to remove them too.
 
 set -e
 
@@ -46,7 +46,11 @@ while read -r f; do
     rm -f "$PREFIX/$f"
 done < "$MANIFEST"
 rm -f "$MANIFEST"
-rm -f /var/lib/php/tmp/opnsense_acl_cache.json
+rm -f /var/lib/php/tmp/opnsense_menu_cache.xml /var/lib/php/tmp/opnsense_acl_cache.json
 service configd restart >/dev/null
+for i in 1 2 3 4 5 6 7 8 9 10; do        # configd takes a moment to come back
+    configctl cron restart >/dev/null 2>&1 && break
+    sleep 1
+done
 
-echo "Probes removed. Its history is still in /var/db/rrd/*-probes.rrd; delete it to remove the graph."
+echo "Probes removed. Its totals are still in /var/db/probes/; delete that directory to remove them."

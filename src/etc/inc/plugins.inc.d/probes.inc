@@ -26,30 +26,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-namespace OPNsense\RRD\Types;
-
-/**
- * One RRD per WAN interface (<interface>-probes.rrd): packets blocked coming in, all of them and those
- * blocked by blocklist rules. DERIVE with a minimum of 0, so a counter that goes back to zero (pf resets a
- * rule's counters whenever the rules are reloaded) leaves one unknown sample, not a spike.
- */
-class Probes extends Base
+/* every minute: add the firewall log lines since the last run to Probes' totals */
+function probes_cron()
 {
-    protected int $ds_heartbeat = 120;
-    protected int $ds_min = 0;
-    protected int $ds_max = 100000000;
-    protected static string $stdfilename = '%s-probes.rrd';
-
-    public function __construct(string $filename)
-    {
-        parent::__construct($filename);
-        $this->addDatasets(['all', 'blocklist'], 'DERIVE');
-    }
-
-    public static function payloadSplitter(array $payload)
-    {
-        foreach ($payload as $ifname => $data) {
-            yield static::$basedir . sprintf(static::$stdfilename, $ifname) => $data;
-        }
-    }
+    $jobs = [];
+    $jobs[]['autocron'] = ['/usr/local/sbin/configctl -d probes collect', '*'];
+    return $jobs;
 }

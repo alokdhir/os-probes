@@ -2,6 +2,7 @@
     <page-reporting-probes>
         <name>Reporting: Probes</name>
         <patterns>
+            <pattern>ui/probes/*</pattern>
             <pattern>api/probes/*</pattern>
         </patterns>
     </page-reporting-probes>
