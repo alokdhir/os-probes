@@ -10,14 +10,15 @@ Inside the OPNsense GUI, you get the probing over time, every source with its co
 
 ## Features
 
-- **A graph** of packets blocked coming in on your WAN, per minute, for the last hour, 3 hours, 24 hours, 7 days or 30 days, as two lines: everything blocked, and what your blocklists (such as Spamhaus DROP) blocked. The gap between them is what the blocklists didn't catch.
-- **Sources**: every address that was blocked, with its country, packets, how many ports it tried, the port it tried most, and when it was first and last seen. Filter by country, search by address, or by port (`23`: everyone who tried telnet). Sources blocked by a blocklist are tagged.
+- **A graph** of packets blocked coming in on your WAN, per minute, for the last hour, 3 hours, 24 hours, 7 days or 30 days, as two lines: everything blocked, and what your blocklists (such as Spamhaus DROP or blocklist.de) blocked. The gap between them is what the blocklists didn't catch.
+- **Sources**: every address that was blocked, with its country, packets, how many ports it tried, the port it tried most, and when it was first and last seen. Filter by country, search by address, or by port (`23`: everyone who tried telnet). Sources a blocklist blocked are tagged with the list's name.
 - **A source's detail**: click one for its packets over time (per hour, or per 5 minutes for the last 1 or 3 hours), every port it tried, and a Whois button.
 - **Ports**: every port (or protocol, such as ICMP) that was tried, with the service's name, packets and how many different sources tried it. Search by number, service name (`ssh`) or protocol.
 - **Map**: a world map shaded by packets per country, beside a list of countries. Click a country to list its sources.
 - **Dashboard widget**: the last 24 hours at a glance, with the totals, the peak rate and the top five ports and sources.
+- **Not fooled by your own traffic**: packets that are late replies to connections your network made (QUIC from big sites, a peer-to-peer VPN trying ports) are left out, and counted separately, so the busiest "probers" aren't Meta and your work VPN.
 - **Fast**: the page loads at once, for any period: the totals are kept up to date in the background.
-- **Whois**, on request: a button in a source's detail asks the address's regional registry (ARIN, RIPE, APNIC and so on, over RDAP) who it belongs to: the owner, the network and its range, the country and where to report abuse.
+- **Whois**, on request: a button in a source's detail asks the address's regional registry (ARIN, RIPE, APNIC and so on, over RDAP) who it belongs to: the owner, the network and its range, the country it's registered in and where to report abuse.
 - **Nothing leaves the router** unless you ask. Probes reads the firewall log OPNsense already writes and sends nothing anywhere; the one exception is the Whois button, which looks up that one address when you press it (answers are kept a week). For countries it uses OPNsense's own GeoIP feature (the one behind GeoIP aliases) when you've turned it on; Probes doesn't ship or download any GeoIP data itself.
 - **No settings.** It finds your WAN interfaces and blocklist rules itself.
 
