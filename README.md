@@ -58,16 +58,19 @@ Packets **blocked coming in on a WAN interface**, as the firewall log records th
 
 ## Install
 
-From a package repository that carries it (`os-probes`), or for development, from this repository over SSH:
+Probes installs from a package repository, [os-plugins](https://alokdhir.github.io/os-plugins/) (it isn't in the official plugin list: [plugins there wrap FreeBSD ports](https://github.com/opnsense/plugins/issues/5854)). Add the repository once, on the OPNsense box itself, from the console (option 8, *Shell*) or SSH, as root:
 
 ```sh
-ROUTER=root@192.168.1.1 tools/deploy.sh              # install or update
-ROUTER=root@192.168.1.1 tools/deploy.sh uninstall    # remove
+fetch -o /usr/local/etc/ssl/dhir-os-plugins.pub https://alokdhir.github.io/os-plugins/dhir-os-plugins.pub
+fetch -o /usr/local/etc/pkg/repos/dhir-os-plugins.conf https://alokdhir.github.io/os-plugins/dhir-os-plugins.conf
+pkg update
 ```
 
-`PROBES_SSH` adds ssh options, e.g. `PROBES_SSH="ssh -i ~/.ssh/router_key"`. `tools/install.sh` and `tools/uninstall.sh` do the same on the router itself.
+Then install **os-probes** from **System ▸ Firmware ▸ Plugins**; OPNsense shows its standard *Third party software* notice first, as it does for any package not from OPNsense. Updates arrive with OPNsense's own, under **System ▸ Firmware ▸ Updates**. The repository is signed: `pkg` checks everything it installs from it against the public key fetched above. The same repository has [Loupe](https://github.com/alokdhir/os-loupe) and [os-eero](https://github.com/alokdhir/os-eero).
 
-Then open **Reporting ▸ Probes**. The first run reads up to 30 days of existing firewall log, so there's history straight away; on a busy log that takes a minute.
+Then open **Reporting ▸ Probes**. The first run reads up to 30 days of existing firewall log, so there's history straight away; on a busy log that takes a minute or two.
+
+For development, `ROUTER=user@router tools/deploy.sh` copies your working tree to a router over SSH and installs it there (`tools/install.sh`, without the package; `tools/deploy.sh uninstall` removes it). `PROBES_SSH` adds ssh options, e.g. `PROBES_SSH="ssh -i ~/.ssh/router_key"`. Packages are built and published by `tools/publish.sh` in [os-plugins](https://github.com/alokdhir/os-plugins); a changed plugin needs a new `PLUGIN_VERSION` or `PLUGIN_REVISION`.
 
 ### Countries (GeoIP)
 
@@ -95,7 +98,7 @@ Probes picks the database up within a minute, and again whenever it's updated.
 
 ## Uninstall
 
-`tools/deploy.sh uninstall` (or removing the package) removes the plugin and its cron job, and keeps the database in `/var/db/probes/`; delete that directory to remove it too.
+Removing the package (`pkg delete os-probes`, or System ▸ Firmware ▸ Plugins) removes the plugin and its cron job, and keeps the database in `/var/db/probes/`; delete that directory to remove it too.
 
 ## Development
 
