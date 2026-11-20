@@ -92,6 +92,17 @@ export default class Probes extends BaseWidget {
             + `<div class="pw-val">${val}</div></div>`;
     }
 
+    // [[time, a, b, ...], ...] every `step` seconds, added up into `size`-second points (the same in Loupe's and Probes' widgets)
+    static buckets(points, step, size) {
+        if (step >= size) return points;
+        const out = new Map();
+        points.forEach(([t, ...v]) => {
+            const b = t - t % size, sum = out.get(b) || v.map(() => 0);
+            out.set(b, sum.map((x, i) => x + v[i]));
+        });
+        return [...out.entries()].sort((a, b) => a[0] - b[0]).map(([t, v]) => [t, ...v]);
+    }
+
     async onMarkupRendered() {
         this.colors = {
             all: ['rgba(54,162,235,1)', 'rgba(54,162,235,0.25)'],
@@ -135,7 +146,7 @@ export default class Probes extends BaseWidget {
         this.updateTop(d);
     }
 
-    // the last 24 hours in 5-minute steps: all blocked packets, and those blocked by blocklist rules
+    // the last 24 hours per 15 minutes: all blocked packets, and those blocked by blocklist rules (per minute, averaged)
     updateChart(d) {
         const perMin = d.step / 60;
         $('#probes-w-total').html(
@@ -143,11 +154,13 @@ export default class Probes extends BaseWidget {
             + ` &nbsp;<span class="pw-key" style="background:${this.colors.blocklist[0]}"></span>${Probes.count(d.listed)} ${this.translations.bylists}`);
         $('#probes-w-note').text(d.data_since && d.data_since > d.since + 3600 ? this.translations.since + ' '
             + new Date(d.data_since * 1000).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'}) : '');
-        this.chart.data.labels = d.series.map(r => r[0] * 1000);
+        // the peak from the 5-minute points; the line per 15 minutes, as in Loupe's widget
+        const peak = Math.max(0, ...d.series.map(r => r[1] / perMin));
+        const size = 15 * 60, points = Probes.buckets(d.series, d.step, size);
+        this.chart.data.labels = points.map(p => p[0] * 1000);
         this.chart.data.datasets.forEach(ds => {
-            ds.data = d.series.map(r => (ds.key === 'all' ? r[1] : r[2]) / perMin);
+            ds.data = points.map(p => (ds.key === 'all' ? p[1] : p[2]) / (size / 60));
         });
-        const peak = Math.max(0, ...this.chart.data.datasets.flatMap(ds => ds.data));
         $('#probes-w-peak').text(`${this.translations.peak} ${peak.toFixed(peak < 10 ? 1 : 0)}${this.translations.min}`);
         this.chart.update();
     }
