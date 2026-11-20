@@ -108,7 +108,8 @@ export default class Probes extends BaseWidget {
                 maintainAspectRatio: false, animation: false,
                 interaction: {mode: 'index', intersect: false},
                 elements: {line: {borderWidth: 1.5, cubicInterpolationMode: 'monotone'}, point: {radius: 0, hoverRadius: 3}},
-                plugins: {legend: {display: false}, tooltip: {itemSort: (a, b) => b.datasetIndex - a.datasetIndex, callbacks: {
+                // the dashboard's colour-scheme plugin would repaint both lines in its own palette (as core's widgets, off)
+                plugins: {colorschemes: false, legend: {display: false}, tooltip: {itemSort: (a, b) => b.datasetIndex - a.datasetIndex, callbacks: {
                     title: items => new Date(this.chart.data.labels[items[0].dataIndex]).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}),
                     label: c => `${c.dataset.label}: ${c.raw.toFixed(c.raw < 10 ? 1 : 0)} ${this.translations.permin}`
                 }}},
