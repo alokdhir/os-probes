@@ -175,8 +175,9 @@ export default class Probes extends BaseWidget {
             $('#probes-w-top').html(`<div class="pw-sub" style="margin-top: 8px">${this.translations.nolog}</div>`);
             return;
         }
-        // each links to the page: a port to the sources that tried it, a source to its detail
-        const link = (kind, value, text) => `<a href="/ui/probes/#${kind}=${encodeURIComponent(value)}">${text}</a>`;
+        // each links to the page: a port to the sources that tried it, a source to its detail; with the widget's period, so
+        // the page shows the same 24 hours (as in Loupe's widget)
+        const link = (kind, value, text) => `<a href="/ui/probes/#${kind}=${encodeURIComponent(value)}&hours=24">${text}</a>`;
         const portName = r => r.port !== null && r.port !== undefined ? `${r.proto}/${r.port}` : r.proto;
         const ports = d.ports.map(r => this.row(
             link('port', portName(r), r.service ? `${Probes.esc(r.service)} <span class="pw-sub">${Probes.port(r)}</span>` : Probes.port(r)),

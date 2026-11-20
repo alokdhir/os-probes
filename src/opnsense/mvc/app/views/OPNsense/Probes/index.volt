@@ -62,7 +62,9 @@ POSSIBILITY OF SUCH DAMAGE.
         const RED = 'rgba(255,99,71,1)', RED_FILL = 'rgba(255,99,71,0.45)';
         const regions = (typeof Intl !== 'undefined' && Intl.DisplayNames)
             ? new Intl.DisplayNames(undefined, {type: 'region'}) : null;
-        let hours = 24;
+        /* the period last picked, as Loupe remembers its own (one of the buttons', else 24 hours) */
+        let hours = parseInt(localStorage.getItem('probes.hours') || '24');
+        if (![1, 3, 24, 168, 720].includes(hours)) hours = 24;
         let summary = null;
         let chart = null;
         let world = null;
@@ -380,6 +382,7 @@ POSSIBILITY OF SUCH DAMAGE.
         /* ---- period ---- */
         $('.probes-period .btn').click(function () {
             hours = parseInt($(this).data('hours'));
+            localStorage.setItem('probes.hours', hours);
             $('.probes-period .btn').removeClass('active').filter(`[data-hours="${hours}"]`).addClass('active');
             load();
         });
@@ -392,11 +395,18 @@ POSSIBILITY OF SUCH DAMAGE.
         $('#probes-country').selectpicker().on('changed.bs.select', () => $('#grid-sources').bootgrid('reload'));
         grid('grid-ports', '/api/probes/report/search_ports');
         /* links from the dashboard widget: #source=<ip> opens a source, #port=tcp/23 lists the sources that tried it */
+        /* a link's own period (the widget's: &hours=24) shows that period this once, without becoming the remembered one (the
+           same in Loupe) */
         function route() {
-            const m = /^#(source|port)=(.+)$/.exec(window.location.hash);
+            const m = /^#(source|port)=([^&]+)(?:&hours=(\d+))?$/.exec(window.location.hash);
             if (!m) return;
             history.replaceState(null, '', window.location.pathname);
-            const value = decodeURIComponent(m[2]);
+            const value = decodeURIComponent(m[2]), h = parseInt(m[3]);
+            if ([1, 3, 24, 168, 720].includes(h) && h !== hours) {
+                hours = h;
+                $('.probes-period .btn').removeClass('active').filter(`[data-hours="${hours}"]`).addClass('active');
+                load();
+            }
             if (m[1] === 'source') showSource(value); else showPort(value);
         }
         $('#grid-sources').one('loaded.rs.jquery.bootgrid', route);
