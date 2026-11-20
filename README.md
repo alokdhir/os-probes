@@ -109,6 +109,10 @@ src/opnsense/www/js/probes/world.json              country outlines for the map
 
 `tools/deploy.sh` copies the tree to the router and installs it where the package would (`src/` → `/usr/local`).
 
+## See also
+
+[**Loupe**](https://github.com/alokdhir/os-loupe) is Probes' opposite. Probes shows the traffic your firewall stops, coming in from the internet. Loupe shows the traffic it lets through, going out: which device on your network talked to which site or service, how much and when.
+
 ## License
 
 BSD 2-Clause, see [LICENSE](LICENSE). The world map is [Natural Earth](https://www.naturalearthdata.com/) (public domain), reduced; see `src/opnsense/www/js/probes/world.json.LICENSE`.
