@@ -306,7 +306,7 @@ POSSIBILITY OF SUCH DAMAGE.
                 rows.push(['{{ lang._('From') }}', `<a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.registry)}</a>`
                     + `<span class="probes-note"> · ${esc(when(w.fetched))}</span>`]);
                 target.hide().html(`<table class="table table-condensed probes-whois-table"><tbody>`
-                    + rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join('')
+                    + rows.map((r, i) => `<tr><th${i === rows.length - 1 ? ' class="text-right"' : ''}>${r[0]}</th><td>${r[1]}</td></tr>`).join('')
                     + `</tbody></table>`).slideDown(250);
             });
         }
