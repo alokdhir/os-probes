@@ -17,7 +17,7 @@ Inside the OPNsense GUI, you get the probing over time, every source with its co
 - **Map**: a world map shaded by packets per country, beside a list of countries. Click a country to list its sources.
 - **Dashboard widget**: the last 24 hours at a glance, with the totals, the peak rate and the top five ports and sources.
 - **Fast**: the page loads at once, for any period: the totals are kept up to date in the background.
-- **Nothing leaves the router.** Probes reads the firewall log OPNsense already writes; it looks nothing up online and sends nothing anywhere. Countries come from the GeoIP database OPNsense itself downloads for GeoIP aliases.
+- **Nothing leaves the router.** Probes reads the firewall log OPNsense already writes; it looks nothing up online and sends nothing anywhere. For countries it uses OPNsense's own GeoIP feature (the one behind GeoIP aliases) when you've turned it on; Probes doesn't ship or download any GeoIP data itself.
 - **No settings.** It finds your WAN interfaces and blocklist rules itself.
 
 ## Screenshots
@@ -52,7 +52,7 @@ Not everything blocked is hostile. Most of it is port scans and login attempts, 
 
 - OPNsense 26.7 or later.
 - Logging of the default deny rule (on by default).
-- For countries and the map: the GeoIP database (below). Without it, everything else works; the country column, country filter and map are left out.
+- For countries and the map: OPNsense's built-in GeoIP feature, turned on (below). Without it, everything else works; the country column, country filter and map are left out.
 
 ## Install
 
@@ -69,7 +69,7 @@ Then open **Reporting ▸ Probes**. The first run reads up to 30 days of existin
 
 ### Countries (GeoIP)
 
-OPNsense downloads a country database for its GeoIP aliases, and Probes uses the same one. Its settings live, a little oddly, under *Firewall ▸ Aliases ▸ GeoIP settings*. With MaxMind's free GeoLite2:
+Probes doesn't bring its own country data. OPNsense already has a GeoIP feature, built for GeoIP aliases (firewall rules by country), and Probes uses the database it downloads. It's off until you give it a download URL, in *Firewall ▸ Aliases ▸ GeoIP settings* (an odd place for it, since that's its only use in OPNsense). If you already use GeoIP aliases, there's nothing to do. Otherwise, with MaxMind's free GeoLite2:
 
 1. Sign up for a free account at [maxmind.com](https://www.maxmind.com/en/geolite2/signup).
 2. In your account, *Manage License Keys ▸ Generate new license key*. A new key can take a few minutes to start working.
@@ -84,8 +84,8 @@ Probes picks the database up within a minute, and again whenever it's updated.
 ## How it works
 
 - **Collector**: a cron job runs every minute (`configctl probes collect`). It reads only the firewall log lines written since its last run (`/var/log/filter/`), keeps the blocks that came in on a WAN, and adds them to hourly totals per source and port, and 5-minute totals for the graph, in an SQLite database (`/var/db/probes/probes.db`). A minute's run takes a fraction of a second.
-- **Countries**: the collector copies OPNsense's GeoIP lists into the database when they change, and looks each new source up once.
-- **Period totals**: every 5 minutes, the collector adds up each source, port and country for the page's three periods, so the page and widget read ready totals instead of adding up hundreds of thousands of rows. The graph and totals are up to a minute old, the lists and map up to five.
+- **Countries**: when OPNsense's GeoIP database changes, the collector copies its country lists into Probes' own database, and looks each new source up once.
+- **Period totals**: every 5 minutes, the collector adds up each source, port and country for the page's five periods, so the page and widget read ready totals instead of adding up hundreds of thousands of rows. The graph and totals are up to a minute old, the lists and map up to five.
 - **Retention**: 30 days. The database is roughly 40 MB for a month of a typical home connection, plus about 35 MB for the GeoIP lists.
 - **API**: the page and widget read `/api/probes/report/summary/<hours>`, `search_sources`, `search_ports` and `source/<ip>/<hours>` (configd `probes query`). The ACL entry is *Reporting: Probes*.
 
