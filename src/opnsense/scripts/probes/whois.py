@@ -131,6 +131,8 @@ def distill(data, url):
              for c in data.get('cidr0_cidrs') or [] if (c.get('v4prefix') or c.get('v6prefix'))]
     events = {e.get('eventAction'): (e.get('eventDate') or '')[:10] for e in data.get('events') or []}
     link = next((l.get('href') for l in data.get('links') or [] if l.get('rel') == 'self'), url)
+    if not isinstance(link, str) or not link.startswith('https://'):
+        link = url                              # the page links to it: never a javascript: or other scheme
     return {
         'name': data.get('name') or '', 'owner': owner,
         'handle': '' if ' ' in (data.get('handle') or ' ') else data['handle'],     # RIPE's is the range again
@@ -154,7 +156,10 @@ def lookup(ip):
     db.execute('CREATE TABLE IF NOT EXISTS whois (ip TEXT PRIMARY KEY, fetched INTEGER, data TEXT) WITHOUT ROWID')
     row = db.execute('SELECT fetched, data FROM whois WHERE ip = ?', (str(addr),)).fetchone()
     if row and time.time() - row[0] < KEEP:
-        return dict(json.loads(row[1]), fetched=row[0])
+        cached = json.loads(row[1])
+        if not str(cached.get('url', '')).startswith('https://'):
+            cached['url'] = ''
+        return dict(cached, fetched=row[0])
     try:
         base = registry(addr)
         if not base:

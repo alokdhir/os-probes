@@ -97,6 +97,19 @@ Probes picks the database up within a minute, and again whenever it's updated.
 - **Whois**: `configctl probes whois <ip>` asks IANA which registry holds the address (its list is kept a month) and that registry's RDAP service; the answer is kept a week.
 - **API**: the page and widget read `/api/probes/report/summary/<hours>`, `search_sources`, `search_ports`, `source/<ip>/<hours>` (configd `probes query`) and `whois/<ip>` (configd `probes whois`). The ACL entry is *Reporting: Probes*. Links into the page: `/ui/probes/#source=<ip>` opens a source, `/ui/probes/#port=tcp/23` lists the sources that tried a port.
 
+## Security
+
+Probes only reads. It never changes firewall rules or touches packets, runs no daemon of its own and listens on no network port. Its pages and API are behind OPNsense's login and its own privilege, *Reporting: Probes*.
+
+Its three scripts run as root, as every plugin's configd actions do: the collector (cron, every minute), the queries behind the page, and whois. Root is what lets them read the firewall log, `config.xml` and the firewall's state table (`pfctl -ss`), and write the database in `/var/db/probes/` (mode 750, owned by root).
+
+- **What it reads from the outside world** is what the firewall log records about a blocked packet: its addresses, protocol and ports. A line is used only when its interface, action, direction and protocol are ones Probes expects, and ports only when they're numbers; everything is stored as bound parameters. Nothing else from a packet is read.
+- **Input from the page** is checked twice: by the API (addresses must be addresses, periods and page sizes have limits, sorting is by a fixed list of columns, search text is cut down to letters, digits and a few separators) and again by the query script. Everything reaches SQLite as a bound parameter, never as part of the SQL. The queries open the database read-only.
+- **Commands**: `pfctl` and Health's `rrdtool` are run with fixed arguments, never through a shell.
+- **Untrusted text on the page** (addresses, and whois answers, which the network's owner partly writes) is escaped wherever it's shown, and a whois link is only made for an `https://` address.
+- **Network**: the only outbound connections are whois lookups, over HTTPS to IANA and the regional registry, made only when you press *Whois*. No telemetry, no update checks, no CDN: the page uses OPNsense's own copies of Chart.js and d3, and the world map ships with the plugin.
+- **The package** holds no compiled code and no install scripts; what's in this repository is what runs.
+
 ## Uninstall
 
 Removing the package (`pkg delete os-probes`, or System ▸ Firmware ▸ Plugins) removes the plugin and its cron job, and keeps the database in `/var/db/probes/`; delete that directory to remove it too.
