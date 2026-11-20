@@ -4,19 +4,19 @@ The moment anything goes online, it's being probed. Within minutes of getting a 
 
 Your firewall blocks them and writes each one to a log nobody reads. **Probes reads it for you, and shows you who is trying to break in, how, and from where.**
 
-Inside the OPNsense GUI, you get the probing over time, every source with its country and what it tried, every port that gets tried and by how many, and a world map of where it all comes from. It answers questions like *"how much of this is going on?"*, *"who is the busiest scanner this week?"*, *"what did this address try?"*, *"who's been trying SSH?"*, *"how much is my blocklist actually catching?"* and *"where is all this coming from?"*
+Inside the OPNsense GUI, you get the probing over time, every source with its country, what it tried, which blocklist caught it and who owns its network, every port that gets tried and by how many, and a world map of where it all comes from. It answers questions like *"how much of this is going on?"*, *"who is the busiest scanner this week?"*, *"what did this address try?"*, *"who's been trying SSH?"*, *"how much is my blocklist actually catching?"* and *"where is all this coming from?"*
 
 ![Probes: the graph, totals and the busiest sources](docs/images/sources.png)
 
 ## Features
 
 - **A graph** of packets blocked coming in on your WAN, per minute, for the last hour, 3 hours, 24 hours, 7 days or 30 days, as two lines: everything blocked, and what your blocklists (such as Spamhaus DROP or blocklist.de) blocked. The gap between them is what the blocklists didn't catch.
-- **Sources**: every address that was blocked, with its country, packets, how many ports it tried, the port it tried most, and when it was first and last seen. Filter by country, search by address, or by port (`23`: everyone who tried telnet). Sources a blocklist blocked are tagged with the list's name.
+- **Sources**: every address that was blocked, with its country, packets, how many ports it tried, the port it tried most, and when it was first and last seen. Pick a country from the list beside the search box (type to find it), or search by address, country name, or port (`23`: everyone who tried telnet; `udp/53`). Sources a blocklist blocked are tagged with the list's name, such as *Spamhaus DROP*.
 - **A source's detail**: click one for its packets over time (per hour, or per 5 minutes for the last 1 or 3 hours), every port it tried, and a Whois button.
-- **Ports**: every port (or protocol, such as ICMP) that was tried, with the service's name, packets and how many different sources tried it. Search by number, service name (`ssh`) or protocol.
-- **Map**: a world map shaded by packets per country, beside a list of countries. Click a country to list its sources.
-- **Dashboard widget**: the last 24 hours at a glance, with the totals, the peak rate and the top five ports and sources.
-- **Not fooled by your own traffic**: packets that are late replies to connections your network made (QUIC from big sites, a peer-to-peer VPN trying ports) are left out, and counted separately, so the busiest "probers" aren't Meta and your work VPN.
+- **Ports**: every port (or protocol, such as ICMP) that was tried, with the service's name, packets and how many different sources tried it. Search by number, service name (`ssh`) or protocol. Click a port to list the sources that tried it.
+- **Map**: a world map shaded by packets per country, with a legend scaled to the period, beside a list of countries. Click a country to list its sources.
+- **Dashboard widget**: the last 24 hours at a glance, per 15 minutes, with the totals, the peak rate and the top ports and sources. Click a port or source to open it on the page.
+- **Not fooled by your own traffic**: packets that are late replies to connections your network made are left out, and counted separately beside the totals. On a typical home connection that's a fifth to a quarter of everything blocked: cloud services (QUIC from Google and Meta), smart-home hubs talking to their makers' clouds, video calls, a peer-to-peer VPN trying ports. Without this, the busiest "probers" would be WhatsApp and your work VPN.
 - **Fast**: the page loads at once, for any period: the totals are kept up to date in the background.
 - **Whois**, on request: a button in a source's detail asks the address's regional registry (ARIN, RIPE, APNIC and so on, over RDAP) who it belongs to: the owner, the network and its range, the country it's registered in and where to report abuse.
 - **Nothing leaves the router** unless you ask. Probes reads the firewall log OPNsense already writes and sends nothing anywhere; the one exception is the Whois button, which looks up that one address when you press it (answers are kept a week). For countries it uses OPNsense's own GeoIP feature (the one behind GeoIP aliases) when you've turned it on; Probes doesn't ship or download any GeoIP data itself.
@@ -48,7 +48,7 @@ Packets **blocked coming in on a WAN interface**, as the firewall log records th
 - **Only rules that log are in the log.** OPNsense's default deny rule logs unless *Firewall ▸ Settings ▸ Advanced ▸ Log packets that are blocked by the default rule* is turned off, so in a usual setup Probes sees nearly everything blocked. Your own block rules show up when they log.
 - **A blocklist rule** is an enabled block or reject rule, inbound (or both directions), on a WAN (or floating), whose source is an alias filled from a URL: type *URL*, *URL Table* or *URL Table (JSON)*. For example [Spamhaus DROP](https://docs.opnsense.org/manual/how-tos/drop.html) in a URL Table alias. Only rules made in *Firewall ▸ Rules* are recognised (pf labels those with their ID); legacy rules are not.
 
-**Late replies aren't counted.** Not everything blocked is a probe. When a connection your network made has closed or gone idle, the other end often keeps sending for a while (QUIC from big sites, video calls), and peer-to-peer VPNs (NetBird, Tailscale, WireGuard) try ports on your public address to find a direct path. The firewall blocks those too. Probes leaves out any blocked packet from an address your network connected to in the hour before, and shows how many it left out, and from where, beside the totals. It knows what your network connected to from the firewall's open connections, checked every minute, and from outbound connections in the log when those are logged.
+**Late replies aren't counted.** Not everything blocked is a probe. When a connection your network made has closed or gone idle, the other end often keeps sending for a while (QUIC from big sites, video calls), and peer-to-peer VPNs (NetBird, Tailscale, WireGuard) try ports on your public address to find a direct path. The firewall blocks those too. Probes leaves out any blocked packet from an address your network connected to in the hour before, and shows how many it left out, and from where, beside the totals. Packets a blocklist rule blocked always count as probes. It knows what your network connected to from the firewall's open connections, checked every minute, and from outbound connections in the log when those are logged.
 
 ## Requirements
 
@@ -88,13 +88,13 @@ Probes picks the database up within a minute, and again whenever it's updated.
 
 ## How it works
 
-- **Collector**: a cron job runs every minute (`configctl probes collect`). It reads only the firewall log lines written since its last run (`/var/log/filter/`), keeps the blocks that came in on a WAN, and adds them to hourly totals per source and port, and 5-minute totals for the graph, in an SQLite database (`/var/db/probes/probes.db`). A minute's run takes a fraction of a second.
+- **Collector**: a cron job runs every minute (`configctl probes collect`). It reads only the firewall log lines written since its last run (`/var/log/filter/`), keeps the blocks that came in on a WAN, and adds them to hourly totals per source and port (5-minute ones for the last 3 hours) and per-minute totals for the graph, in an SQLite database (`/var/db/probes/probes.db`). It also notes which blocklist blocked each source. A minute's run takes a fraction of a second.
 - **Countries**: when OPNsense's GeoIP database changes, the collector copies its country lists into Probes' own database, and looks each new source up once.
-- **Period totals**: every 5 minutes, the collector adds up each source, port and country for the page's five periods, so the page and widget read ready totals instead of adding up hundreds of thousands of rows. The graph and totals are up to a minute old, the lists and map up to five.
-- **Retention**: 30 days. The database is roughly 40 MB for a month of a typical home connection, plus about 35 MB for the GeoIP lists.
+- **Period totals**: every 5 minutes (every minute for the 1- and 3-hour periods), the collector adds up each source, port and country for the page's five periods, so the page and widget read ready totals instead of adding up hundreds of thousands of rows. The graph and totals are up to a minute old, the lists and map up to five (one for the short periods).
+- **Retention**: 30 days. The database is roughly 90 MB for a month of a typical home connection, about 35 MB of it the GeoIP lists.
 - **Late replies**: the collector notes which addresses your network connects to, from outbound passes in the log and the firewall's open connections (`pfctl -ss`) every minute, and counts a blocked packet from one of them in the hour after as a reply instead of a probe.
 - **Whois**: `configctl probes whois <ip>` asks IANA which registry holds the address (its list is kept a month) and that registry's RDAP service; the answer is kept a week.
-- **API**: the page and widget read `/api/probes/report/summary/<hours>`, `search_sources`, `search_ports`, `source/<ip>/<hours>` (configd `probes query`) and `whois/<ip>` (configd `probes whois`). The ACL entry is *Reporting: Probes*.
+- **API**: the page and widget read `/api/probes/report/summary/<hours>`, `search_sources`, `search_ports`, `source/<ip>/<hours>` (configd `probes query`) and `whois/<ip>` (configd `probes whois`). The ACL entry is *Reporting: Probes*. Links into the page: `/ui/probes/#source=<ip>` opens a source, `/ui/probes/#port=tcp/23` lists the sources that tried a port.
 
 ## Uninstall
 
