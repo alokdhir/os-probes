@@ -38,7 +38,7 @@ DAYS = 30                       # how long the hourly totals are kept
 PERIODS = (1, 3, 24, 168, 720)  # the page's periods (hours): their totals are kept ready, see collect.rollup()
 RECENT = 3                      # hours kept per 5 minutes too, for the short periods
 REPLY_WINDOW = 3600             # a packet from an address your network contacted this recently is a late reply
-VERSION = '2'                   # the tables' layout: another one starts the database over (the log is read again)
+VERSION = '3'                   # the tables' layout: another one starts the database over (the log is read again)
 
 # the same tests as the Health collector (Stats/Probes.php)
 LIST_TYPES = {'url', 'urltable', 'urljson'}
@@ -62,6 +62,8 @@ CREATE INDEX IF NOT EXISTS hits5_ip ON hits5 (ip, hour);
 -- the same packets per minute, for the graph; replies: blocked packets that were late replies (not in hits)
 CREATE TABLE IF NOT EXISTS totals (t INTEGER PRIMARY KEY, packets INTEGER, listed INTEGER, replies INTEGER);
 -- addresses your network connected to (outbound passes in the log, and the firewall's states), and when last
+-- which blocklist rules blocked a source (the rule's description, else its alias), and when last
+CREATE TABLE IF NOT EXISTS listed_by (ip TEXT, list TEXT, last INTEGER, PRIMARY KEY (ip, list)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS contacts (ip TEXT PRIMARY KEY, last INTEGER) WITHOUT ROWID;
 -- blocked packets from those addresses soon after (see REPLY_WINDOW): replies to a connection that already
 -- closed, or a peer-to-peer VPN trying ports, not probes; per hour, source and port
@@ -143,7 +145,7 @@ def text(node, path):
 
 
 def read_config():
-    """ :return: (WAN devices, uuids of the blocklist rules on them) """
+    """ :return: (WAN devices, {uuid: name} of the blocklist rules on them) """
     root = ET.parse(CONFIG).getroot()
     wans = {}
     interfaces = root.find('interfaces')
@@ -158,15 +160,16 @@ def read_config():
         text(alias, 'name') for alias in root.iterfind('OPNsense/Firewall/Alias/aliases/alias')
         if text(alias, 'enabled') == '1' and text(alias, 'type') in LIST_TYPES
     }
-    rules = set()
+    rules = {}
     for rule in root.iterfind('OPNsense/Firewall/Filter/rules/rule'):
         if text(rule, 'enabled') != '1' or text(rule, 'action') not in ('block', 'reject') or \
                 text(rule, 'direction') == 'out' or text(rule, 'source_not') == '1':
             continue
-        if not lists.intersection(filter(None, text(rule, 'source_net').split(','))):
+        sources = lists.intersection(filter(None, text(rule, 'source_net').split(',')))
+        if not sources:
             continue
         listed = set(filter(None, text(rule, 'interface').split(',')))
         invert = text(rule, 'interfacenot') == '1'
         if not listed or any((ifname in listed) != invert for ifname in wans):
-            rules.add(rule.get('uuid', '').lower())
+            rules[rule.get('uuid', '').lower()] = text(rule, 'description') or ', '.join(sorted(sources))
     return set(wans.values()), rules

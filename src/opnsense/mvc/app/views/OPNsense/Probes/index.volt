@@ -73,6 +73,9 @@ POSSIBILITY OF SUCH DAMAGE.
             return plain.replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
         }
         const num = n => Math.round(n || 0).toLocaleString();
+        /* a pill per blocklist that blocked the source (just "blocklist" when the name isn't known) */
+        const listTags = names => (names && names.length ? names : ['{{ lang._('blocklist') }}'])
+            .map(n => `<span class="probes-tag">${esc(n)}</span>`).join('');
         const countryName = cc => !cc ? '{{ lang._('Unknown') }}' : (regions ? (regions.of(cc) || cc) : cc);
         const portText = r => r && (r.port !== null && r.port !== undefined ? `${r.proto}/${r.port}` : r ? r.proto : '');
         function ago(t) {
@@ -225,7 +228,7 @@ POSSIBILITY OF SUCH DAMAGE.
             service: (column, row) => esc(row.service || ''),
             num: (column, row) => num(row[column.id]),
             ip: (column, row) => `<a href="#" class="probes-source" data-ip="${esc(row.ip)}">${esc(row.ip)}</a>`
-                + (row.blocklist ? `<span class="probes-tag">{{ lang._('blocklist') }}</span>` : ''),
+                + (row.blocklist ? listTags(row.lists) : ''),
             country: (column, row) => esc(row.country ? countryName(row.country) : ''),
             top: (column, row) => esc(portText(row.top)),
             ago: (column, row) => `<span title="${esc(when(row[column.id]))}">${esc(ago(row[column.id]))}</span>`
@@ -316,7 +319,7 @@ POSSIBILITY OF SUCH DAMAGE.
                 const body = $('<div/>');
                 body.append(`<button type="button" class="btn btn-default btn-xs probes-whois-btn" title="{{ lang._('Ask the registry who this address belongs to') }}">`
                     + `<i class="fa fa-fw fa-id-card-o"></i> {{ lang._('Whois') }}</button>`);
-                body.append(`<p>${esc(countryName(d.country))}${d.listed ? ' <span class="probes-tag">{{ lang._('blocklist') }}</span>' : ''}<br>
+                body.append(`<p>${esc(countryName(d.country))}${d.listed ? ' ' + listTags(d.lists) : ''}<br>
                     <span class="probes-note">{{ lang._('First seen') }} ${esc(when(d.first))} · {{ lang._('last seen') }} ${esc(when(d.last))}</span><br>
                     <strong>${num(d.packets)}</strong> {{ lang._('packets') }} · <strong>${num(d.nports)}</strong> ${d.nports === 1 ? '{{ lang._('port') }}' : '{{ lang._('ports') }}'}</p>`);
                 body.append('<div class="probes-whois"></div>');

@@ -286,6 +286,15 @@ def _has(name, proto):
         return False
 
 
+def add_lists(db, rows, start):
+    """ the names of the blocklists that blocked each listed source in the period """
+    for row in rows:
+        if row.get('listed'):
+            row['lists'] = [n for (n,) in db.execute(
+                'SELECT list FROM listed_by WHERE ip = ? AND last >= ? ORDER BY list', (row['ip'], start))]
+    return rows
+
+
 def grid(db, kind, hours, sort, direction, offset, limit, text=''):
     start = since(hours)
     order = (PORT_SORT if kind == 'ports' else SOURCE_SORT).get(sort, 'packets')
@@ -294,6 +303,8 @@ def grid(db, kind, hours, sort, direction, offset, limit, text=''):
     if ready(db, hours):
         result = fast_grid(db, kind, int(hours), order, text, offset, limit)
         if result is not None:
+            if kind == 'sources':
+                add_lists(db, result['rows'], start)
             return result
     where, args = search_clause(kind, text)
     if kind == 'ports':
@@ -301,7 +312,7 @@ def grid(db, kind, hours, sort, direction, offset, limit, text=''):
         total = db.execute('SELECT count(*) FROM (SELECT 1 FROM ' + TABLE + ' WHERE hour >= ? %s GROUP BY proto, port)'
                            % where, (start, *args)).fetchone()[0]
     else:
-        rows = sources_query(db, start, where, args, order, limit, offset)
+        rows = add_lists(db, sources_query(db, start, where, args, order, limit, offset), start)
         total = db.execute('SELECT count(*) FROM (SELECT 1 FROM ' + TABLE + ' h LEFT JOIN sources s ON s.ip = h.ip '
                            'WHERE h.hour >= ? %s GROUP BY h.ip)' % where, (start, *args)).fetchone()[0]
     return {'rows': rows, 'total': total}
@@ -323,6 +334,8 @@ def source(db, ip, hours):
     return {'ip': ip, 'country': (info[0] if info else '') or '', 'first': info[1] if info else None,
             'last': info[2] if info else None, 'since': start,
             'packets': sum(n for _, n in hourly), 'listed': sum(r[3] for r in ports) > 0, 'nports': nports,
+            'lists': [n for (n,) in db.execute('SELECT list FROM listed_by WHERE ip = ? AND last >= ? ORDER BY list',
+                                                (ip, start))],
             'hours': hourly, 'step': 300 if TABLE == 'hits5' else 3600,
             'ports': [{'proto': p, 'port': q if q >= 0 else None, 'service': service(p, q), 'packets': n}
                       for p, q, n, _ in ports]}

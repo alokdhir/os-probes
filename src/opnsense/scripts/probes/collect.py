@@ -108,6 +108,7 @@ class Contacts:
 def read_file(db, path, start, devices, blocklist_rules, cutoff, recent, contacted):
     hits = collections.Counter()
     replies = collections.Counter()
+    lists = {}
     totals_replies = collections.Counter()
     listed = collections.Counter()
     totals = collections.Counter()
@@ -156,7 +157,8 @@ def read_file(db, path, start, devices, blocklist_rules, cutoff, recent, contact
             port = int(f[p_dport]) if proto in ('tcp', 'udp') and len(f) > p_dport and f[p_dport].isdigit() else -1
             key = (when - when % 3600, src, proto, port)
             key5 = (when - when % 300, src, proto, port)
-            is_listed = f[3].lower() in blocklist_rules
+            list_name = blocklist_rules.get(f[3].lower())
+            is_listed = list_name is not None
             last_contact = contacted.last(src)
             if not is_listed and last_contact is not None and last_contact >= when - REPLY_WINDOW:
                 replies[key] += 1
@@ -167,6 +169,7 @@ def read_file(db, path, start, devices, blocklist_rules, cutoff, recent, contact
             if when >= recent:
                 hits5[key5] += 1
             if is_listed:
+                lists[(src, list_name)] = max(lists.get((src, list_name), 0), when)
                 listed[key] += 1
                 totals_listed[when - when % 60] += 1
                 if when >= recent:
@@ -185,6 +188,10 @@ def read_file(db, path, start, devices, blocklist_rules, cutoff, recent, contact
             'ON CONFLICT (hour, ip, proto, port) DO UPDATE SET '
             'packets = packets + excluded.packets, listed = listed + excluded.listed',
             [(*key, n, listed5[key]) for key, n in hits5.items()])
+        db.executemany(
+            'INSERT INTO listed_by (ip, list, last) VALUES (?, ?, ?) '
+            'ON CONFLICT (ip, list) DO UPDATE SET last = max(last, excluded.last)',
+            [(ip, name, when) for (ip, name), when in lists.items()])
         db.executemany(
             'INSERT INTO replies (hour, ip, proto, port, packets) VALUES (?, ?, ?, ?, ?) '
             'ON CONFLICT (hour, ip, proto, port) DO UPDATE SET packets = packets + excluded.packets',
@@ -315,6 +322,7 @@ def prune(db, cutoff):
         db.execute('DELETE FROM hits WHERE hour < ?', (cutoff - cutoff % 3600,))
         db.execute('DELETE FROM totals WHERE t < ?', (cutoff - cutoff % 3600,))
         db.execute('DELETE FROM replies WHERE hour < ?', (cutoff - cutoff % 3600,))
+        db.execute('DELETE FROM listed_by WHERE last < ?', (cutoff,))
         db.execute('DELETE FROM contacts WHERE last < ?', (int(time.time()) - 86400,))
         db.execute('DELETE FROM sources WHERE last < ?', (cutoff,))
 
