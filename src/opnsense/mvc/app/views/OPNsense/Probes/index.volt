@@ -294,9 +294,10 @@ POSSIBILITY OF SUCH DAMAGE.
                     ['{{ lang._('Owner') }}', w.owner],
                     ['{{ lang._('Network') }}', [w.name, w.handle && w.handle !== w.name ? `(${w.handle})` : ''].join(' ')],
                     ['{{ lang._('Range') }}', w.cidr && !w.cidr.includes(',') ? w.cidr : w.range],
-                    ['{{ lang._('Country') }}', w.country ? countryName(w.country) : ''],
+                    /* where the holder is registered, which often isn't where the address is used (the GeoIP country above) */
+                    ['{{ lang._('Registered in') }}', w.country ? countryName(w.country) : ''],
                     ['{{ lang._('Abuse contact') }}', (w.abuse || []).join(', ')],
-                    ['{{ lang._('Registered') }}', [w.registered, w.changed ? `{{ lang._('changed') }} ${w.changed}` : ''].filter(Boolean).join(' · ')],
+                    ['{{ lang._('Registered on') }}', [w.registered, w.changed ? `{{ lang._('changed') }} ${w.changed}` : ''].filter(Boolean).join(' · ')],
                     ['{{ lang._('Remarks') }}', w.description !== w.owner ? w.description : ''],
                 ].filter(r => r[1] && String(r[1]).trim());
                 target.hide().html(`<table class="table table-condensed probes-whois-table"><tbody>`
