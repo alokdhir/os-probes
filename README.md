@@ -12,12 +12,13 @@ Inside the OPNsense GUI, you get the probing over time, every source with its co
 
 - **A graph** of packets blocked coming in on your WAN, per minute, for the last hour, 3 hours, 24 hours, 7 days or 30 days, as two lines: everything blocked, and what your blocklists (such as Spamhaus DROP) blocked. The gap between them is what the blocklists didn't catch.
 - **Sources**: every address that was blocked, with its country, packets, how many ports it tried, the port it tried most, and when it was first and last seen. Filter by country, search by address, or by port (`23`: everyone who tried telnet). Sources blocked by a blocklist are tagged.
-- **A source's detail**: click one for its packets over time (per hour, or per 5 minutes for the last 1 or 3 hours) and every port it tried.
+- **A source's detail**: click one for its packets over time (per hour, or per 5 minutes for the last 1 or 3 hours), every port it tried, and a Whois button.
 - **Ports**: every port (or protocol, such as ICMP) that was tried, with the service's name, packets and how many different sources tried it. Search by number, service name (`ssh`) or protocol.
 - **Map**: a world map shaded by packets per country, beside a list of countries. Click a country to list its sources.
 - **Dashboard widget**: the last 24 hours at a glance, with the totals, the peak rate and the top five ports and sources.
 - **Fast**: the page loads at once, for any period: the totals are kept up to date in the background.
-- **Nothing leaves the router.** Probes reads the firewall log OPNsense already writes; it looks nothing up online and sends nothing anywhere. For countries it uses OPNsense's own GeoIP feature (the one behind GeoIP aliases) when you've turned it on; Probes doesn't ship or download any GeoIP data itself.
+- **Whois**, on request: a button in a source's detail asks the address's regional registry (ARIN, RIPE, APNIC and so on, over RDAP) who it belongs to: the owner, the network and its range, the country and where to report abuse.
+- **Nothing leaves the router** unless you ask. Probes reads the firewall log OPNsense already writes and sends nothing anywhere; the one exception is the Whois button, which looks up that one address when you press it (answers are kept a week). For countries it uses OPNsense's own GeoIP feature (the one behind GeoIP aliases) when you've turned it on; Probes doesn't ship or download any GeoIP data itself.
 - **No settings.** It finds your WAN interfaces and blocklist rules itself.
 
 ## Screenshots
@@ -46,7 +47,7 @@ Packets **blocked coming in on a WAN interface**, as the firewall log records th
 - **Only rules that log are in the log.** OPNsense's default deny rule logs unless *Firewall ▸ Settings ▸ Advanced ▸ Log packets that are blocked by the default rule* is turned off, so in a usual setup Probes sees nearly everything blocked. Your own block rules show up when they log.
 - **A blocklist rule** is an enabled block or reject rule, inbound (or both directions), on a WAN (or floating), whose source is an alias filled from a URL: type *URL*, *URL Table* or *URL Table (JSON)*. For example [Spamhaus DROP](https://docs.opnsense.org/manual/how-tos/drop.html) in a URL Table alias. Only rules made in *Firewall ▸ Rules* are recognised (pf labels those with their ID); legacy rules are not.
 
-Not everything blocked is hostile. Most of it is port scans and login attempts, but a few packets are late arrivals from connections that already closed, and peer-to-peer VPNs (NetBird, Tailscale, WireGuard) try a port on your public address to find a direct path; if nothing answers there, those attempts show up too. A source sending a steady trickle to one UDP port is usually that.
+**Late replies aren't counted.** Not everything blocked is a probe. When a connection your network made has closed or gone idle, the other end often keeps sending for a while (QUIC from big sites, video calls), and peer-to-peer VPNs (NetBird, Tailscale, WireGuard) try ports on your public address to find a direct path. The firewall blocks those too. Probes leaves out any blocked packet from an address your network connected to in the hour before, and shows how many it left out, and from where, beside the totals. It knows what your network connected to from the firewall's open connections, checked every minute, and from outbound connections in the log when those are logged.
 
 ## Requirements
 
@@ -87,7 +88,9 @@ Probes picks the database up within a minute, and again whenever it's updated.
 - **Countries**: when OPNsense's GeoIP database changes, the collector copies its country lists into Probes' own database, and looks each new source up once.
 - **Period totals**: every 5 minutes, the collector adds up each source, port and country for the page's five periods, so the page and widget read ready totals instead of adding up hundreds of thousands of rows. The graph and totals are up to a minute old, the lists and map up to five.
 - **Retention**: 30 days. The database is roughly 40 MB for a month of a typical home connection, plus about 35 MB for the GeoIP lists.
-- **API**: the page and widget read `/api/probes/report/summary/<hours>`, `search_sources`, `search_ports` and `source/<ip>/<hours>` (configd `probes query`). The ACL entry is *Reporting: Probes*.
+- **Late replies**: the collector notes which addresses your network connects to, from outbound passes in the log and the firewall's open connections (`pfctl -ss`) every minute, and counts a blocked packet from one of them in the hour after as a reply instead of a probe.
+- **Whois**: `configctl probes whois <ip>` asks IANA which registry holds the address (its list is kept a month) and that registry's RDAP service; the answer is kept a week.
+- **API**: the page and widget read `/api/probes/report/summary/<hours>`, `search_sources`, `search_ports`, `source/<ip>/<hours>` (configd `probes query`) and `whois/<ip>` (configd `probes whois`). The ACL entry is *Reporting: Probes*.
 
 ## Uninstall
 
@@ -99,6 +102,7 @@ Probes picks the database up within a minute, and again whenever it's updated.
 src/etc/inc/plugins.inc.d/probes.inc               cron job
 src/opnsense/scripts/probes/collect.py             collector
 src/opnsense/scripts/probes/query.py               queries for the page and widget
+src/opnsense/scripts/probes/whois.py               whois (RDAP) for the Whois button
 src/opnsense/scripts/probes/common.py              database schema, WANs and blocklist rules
 src/opnsense/service/conf/actions.d/               configd actions
 src/opnsense/mvc/app/controllers/OPNsense/Probes/  page and API

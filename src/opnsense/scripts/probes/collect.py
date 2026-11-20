@@ -39,19 +39,21 @@ import glob
 import ipaddress
 import json
 import os
+import subprocess
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import connect, read_config, period_start, DAYS, PERIODS  # noqa: E402
+from common import connect, read_config, country, period_start, hits_table, DAYS, PERIODS, RECENT, \
+    REPLY_WINDOW  # noqa: E402
 
 LOGS = '/var/log/filter/filter_*.log'
 LOCK = '/var/run/probes.lock'
 GEO_DIR = '/usr/local/share/GeoIP/alias'
 GEO_STATS = '/usr/local/share/GeoIP/alias.stats'
 
-# filterlog's CSV layout (core's scripts/filter/read_log.py): where protocol, source and port are
-FIELDS = {'4': (16, 18, 21), '6': (12, 15, 18)}
+# filterlog's CSV layout (core's scripts/filter/read_log.py): where protocol, source, destination and its port are
+FIELDS = {'4': (16, 18, 19, 21), '6': (12, 15, 16, 18)}
 
 
 def read_logs(db, devices, blocklist_rules, cutoff):
@@ -67,55 +69,110 @@ def read_logs(db, devices, blocklist_rules, cutoff):
         files = [f for f in files if os.path.basename(f) >= first_day]
         last_file, offset = None, 0
 
+    recent = int(time.time()) - RECENT * 3600 - 300
+    contacted = Contacts(db)
+    added = 0
+    for path in files:
+        # one file (a day) at a time, saved as it's done: an interrupted first run picks up where it stopped
+        added += read_file(db, path, offset if path == last_file else 0, devices, blocklist_rules, cutoff, recent,
+                           contacted)
+    with db:
+        db.execute('DELETE FROM hits5 WHERE hour < ?', (recent - recent % 300,))
+    return added
+
+
+class Contacts:
+    """ when your network last connected to an address: what the log has said so far, else the database """
+    def __init__(self, db):
+        self.db = db
+        self.known = {}
+        self.fresh = set()
+
+    def saw(self, ip, when):
+        self.known[ip] = when
+        self.fresh.add(ip)
+
+    def last(self, ip):
+        if ip not in self.known:
+            row = self.db.execute('SELECT last FROM contacts WHERE ip = ?', (ip,)).fetchone()
+            self.known[ip] = row[0] if row else None
+        return self.known[ip]
+
+    def save(self):
+        self.db.executemany('INSERT INTO contacts (ip, last) VALUES (?, ?) '
+                            'ON CONFLICT (ip) DO UPDATE SET last = max(last, excluded.last)',
+                            [(ip, self.known[ip]) for ip in self.fresh])
+        self.fresh.clear()
+
+
+def read_file(db, path, start, devices, blocklist_rules, cutoff, recent, contacted):
     hits = collections.Counter()
+    replies = collections.Counter()
+    totals_replies = collections.Counter()
     listed = collections.Counter()
     totals = collections.Counter()
     totals_listed = collections.Counter()
+    hits5 = collections.Counter()
+    listed5 = collections.Counter()
     seen = {}
-    for path in files:
-        start = offset if path == last_file else 0
-        try:
-            log = open(path, 'rb')
-        except OSError:
-            continue
-        with log:
-            if start > os.fstat(log.fileno()).st_size:
-                start = 0                       # the file was replaced
-            log.seek(start)
-            pos = start
-            for raw in log:
-                if not raw.endswith(b'\n'):
-                    break                       # still being written: next run
-                pos += len(raw)
-                # most of the log is usually passes: skip them before decoding or parsing anything
-                if b',block,in,' not in raw or b'filterlog' not in raw:
-                    continue
-                parts = raw.decode('utf-8', 'replace').split()
-                if len(parts) < 3:
-                    continue
-                f = parts[-1].split(',')
-                if len(f) < 9 or f[6] != 'block' or f[7] != 'in' or f[4] not in devices or f[8] not in FIELDS:
-                    continue
-                try:
-                    when = int(datetime.datetime.fromisoformat(parts[1]).timestamp())
-                except ValueError:
-                    continue
-                if when < cutoff:
-                    continue
-                p_proto, p_src, p_dport = FIELDS[f[8]]
-                if len(f) <= p_src:
-                    continue
-                proto, src = f[p_proto], f[p_src]
-                port = int(f[p_dport]) if proto in ('tcp', 'udp') and len(f) > p_dport and f[p_dport].isdigit() else -1
-                key = (when - when % 3600, src, proto, port)
-                hits[key] += 1
-                totals[when - when % 300] += 1
-                if f[3].lower() in blocklist_rules:
-                    listed[key] += 1
-                    totals_listed[when - when % 300] += 1
-                first, last = seen.get(src, (when, when))
-                seen[src] = (min(first, when), max(last, when))
-        last_file, offset = path, pos
+    try:
+        log = open(path, 'rb')
+    except OSError:
+        return 0
+    with log:
+        if start > os.fstat(log.fileno()).st_size:
+            start = 0                           # the file was replaced
+        log.seek(start)
+        pos = start
+        for raw in log:
+            if not raw.endswith(b'\n'):
+                break                           # still being written: next run
+            pos += len(raw)
+            # blocks coming in, and connections going out (to tell late replies from probes); skip the rest
+            # before decoding or parsing anything
+            outbound = b',pass,out,' in raw
+            if not outbound and b',block,in,' not in raw or b'filterlog' not in raw:
+                continue
+            parts = raw.decode('utf-8', 'replace').split()
+            if len(parts) < 3:
+                continue
+            f = parts[-1].split(',')
+            if len(f) < 9 or f[4] not in devices or f[8] not in FIELDS or \
+                    (f[6], f[7]) != (('pass', 'out') if outbound else ('block', 'in')):
+                continue
+            try:
+                when = int(datetime.datetime.fromisoformat(parts[1]).timestamp())
+            except ValueError:
+                continue
+            p_proto, p_src, p_dst, p_dport = FIELDS[f[8]]
+            if len(f) <= p_dst:
+                continue
+            if outbound:
+                contacted.saw(f[p_dst], when)
+                continue
+            if when < cutoff:
+                continue
+            proto, src = f[p_proto], f[p_src]
+            port = int(f[p_dport]) if proto in ('tcp', 'udp') and len(f) > p_dport and f[p_dport].isdigit() else -1
+            key = (when - when % 3600, src, proto, port)
+            key5 = (when - when % 300, src, proto, port)
+            is_listed = f[3].lower() in blocklist_rules
+            last_contact = contacted.last(src)
+            if not is_listed and last_contact is not None and last_contact >= when - REPLY_WINDOW:
+                replies[key] += 1
+                totals_replies[when - when % 60] += 1
+                continue
+            hits[key] += 1
+            totals[when - when % 60] += 1
+            if when >= recent:
+                hits5[key5] += 1
+            if is_listed:
+                listed[key] += 1
+                totals_listed[when - when % 60] += 1
+                if when >= recent:
+                    listed5[key5] += 1
+            first, last = seen.get(src, (when, when))
+            seen[src] = (min(first, when), max(last, when))
 
     with db:
         db.executemany(
@@ -124,17 +181,58 @@ def read_logs(db, devices, blocklist_rules, cutoff):
             'packets = packets + excluded.packets, listed = listed + excluded.listed',
             [(*key, n, listed[key]) for key, n in hits.items()])
         db.executemany(
-            'INSERT INTO totals (t, packets, listed) VALUES (?, ?, ?) '
-            'ON CONFLICT (t) DO UPDATE SET packets = packets + excluded.packets, listed = listed + excluded.listed',
-            [(t, n, totals_listed[t]) for t, n in totals.items()])
+            'INSERT INTO hits5 (hour, ip, proto, port, packets, listed) VALUES (?, ?, ?, ?, ?, ?) '
+            'ON CONFLICT (hour, ip, proto, port) DO UPDATE SET '
+            'packets = packets + excluded.packets, listed = listed + excluded.listed',
+            [(*key, n, listed5[key]) for key, n in hits5.items()])
+        db.executemany(
+            'INSERT INTO replies (hour, ip, proto, port, packets) VALUES (?, ?, ?, ?, ?) '
+            'ON CONFLICT (hour, ip, proto, port) DO UPDATE SET packets = packets + excluded.packets',
+            [(*key, n) for key, n in replies.items()])
+        db.executemany(
+            'INSERT INTO totals (t, packets, listed, replies) VALUES (?, ?, ?, ?) '
+            'ON CONFLICT (t) DO UPDATE SET packets = packets + excluded.packets, listed = listed + excluded.listed, '
+            'replies = replies + excluded.replies',
+            [(t, totals[t], totals_listed[t], totals_replies[t]) for t in set(totals) | set(totals_replies)])
+        contacted.save()
         db.executemany(
             'INSERT INTO sources (ip, country, first, last) VALUES (?, NULL, ?, ?) '
             'ON CONFLICT (ip) DO UPDATE SET first = min(first, excluded.first), last = max(last, excluded.last)',
             [(src, first, last) for src, (first, last) in seen.items()])
-        if last_file:
-            db.executemany('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)',
-                           [('file', last_file), ('offset', str(offset))])
+        db.executemany('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)',
+                       [('file', path), ('offset', str(pos))])
     return sum(hits.values())
+
+
+def read_states(db):
+    """ the addresses your network has connections to right now: a state's destination, when it's on the
+        internet (one going out; one coming in to a forwarded port has the router or a local address there) """
+    try:
+        out = subprocess.run(['/sbin/pfctl', '-ss'], capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        return
+    now = int(time.time())
+    seen = set()
+    for line in out.splitlines():
+        words = line.split()
+        if '->' in words:
+            at = words.index('->') + 1
+        elif '<-' in words:
+            at = 2
+        else:
+            continue
+        if at >= len(words):
+            continue
+        addr = words[at]
+        addr = addr.split('[')[0] if '[' in addr else addr.rsplit(':', 1)[0]
+        try:
+            if ipaddress.ip_address(addr).is_global:
+                seen.add(addr)
+        except ValueError:
+            continue
+    with db:
+        db.executemany('INSERT INTO contacts (ip, last) VALUES (?, ?) '
+                       'ON CONFLICT (ip) DO UPDATE SET last = max(last, excluded.last)', [(ip, now) for ip in seen])
 
 
 def load_geo(db):
@@ -172,20 +270,6 @@ def load_geo(db):
     return True if stamp else None
 
 
-def country(db, ip):
-    try:
-        addr = ipaddress.ip_address(ip)
-    except ValueError:
-        return ''
-    if addr.version == 4:
-        row = db.execute('SELECT end, cc FROM geo4 WHERE start <= ? ORDER BY start DESC LIMIT 1',
-                         (int(addr),)).fetchone()
-        return row[1] if row and int(addr) <= row[0] else ''
-    row = db.execute('SELECT end, cc FROM geo6 WHERE start <= ? ORDER BY start DESC LIMIT 1',
-                     (addr.packed,)).fetchone()
-    return row[1] if row and addr.packed <= row[0] else ''
-
-
 def fill_countries(db):
     todo = [ip for (ip,) in db.execute('SELECT ip FROM sources WHERE country IS NULL')]
     with db:
@@ -193,19 +277,21 @@ def fill_countries(db):
 
 
 def rollup(db, force=False):
-    """ the page's totals for each period, from the hourly rows: per source, port and country """
+    """ the page's totals for each period, from the hourly (or 5-minute) rows: per source, port and country """
     now = int(time.time())
     built = dict(db.execute('SELECT period, built FROM agg_meta'))
     for hours in PERIODS:
-        if not force and now - built.get(hours, 0) < 300:
+        # the short periods every minute, the long ones every 5 minutes
+        if not force and now - built.get(hours, 0) < (50 if hours <= RECENT else 290):
             continue
         start = period_start(hours, now)
+        table = hits_table(hours)
         with db:
-            for table in ('agg_meta', 'agg_sources', 'agg_ports', 'agg_countries'):
-                db.execute('DELETE FROM %s WHERE period = ?' % table, (hours,))
+            for agg in ('agg_meta', 'agg_sources', 'agg_ports', 'agg_countries'):
+                db.execute('DELETE FROM %s WHERE period = ?' % agg, (hours,))
             db.execute(
-                'INSERT INTO agg_ports SELECT ?, proto, port, sum(packets), count(DISTINCT ip) FROM hits '
-                'WHERE hour >= ? GROUP BY proto, port', (hours, start))
+                'INSERT INTO agg_ports SELECT ?, proto, port, sum(packets), count(DISTINCT ip) FROM %s '
+                'WHERE hour >= ? GROUP BY proto, port' % table, (hours, start))
             # each source with the port it tried most
             db.execute(
                 'INSERT INTO agg_sources SELECT ?, b.ip, coalesce(s.country, \'\'), b.packets, b.ports, b.listed, s.first, '
@@ -214,8 +300,8 @@ def rollup(db, force=False):
                 '    max(CASE WHEN rk = 1 THEN proto END) top_proto, max(CASE WHEN rk = 1 THEN port END) top_port FROM ('
                 '      SELECT ip, proto, port, sum(packets) n, sum(listed) l, '
                 '        row_number() OVER (PARTITION BY ip ORDER BY sum(packets) DESC, proto, port) rk '
-                '      FROM hits WHERE hour >= ? GROUP BY ip, proto, port) '
-                '  GROUP BY ip) b LEFT JOIN sources s ON s.ip = b.ip', (hours, start))
+                '      FROM %s WHERE hour >= ? GROUP BY ip, proto, port) '
+                '  GROUP BY ip) b LEFT JOIN sources s ON s.ip = b.ip' % table, (hours, start))
             db.execute(
                 'INSERT INTO agg_countries SELECT ?, country, sum(packets), count(*) FROM agg_sources '
                 'WHERE period = ? GROUP BY country', (hours, hours))
@@ -228,6 +314,8 @@ def prune(db, cutoff):
     with db:
         db.execute('DELETE FROM hits WHERE hour < ?', (cutoff - cutoff % 3600,))
         db.execute('DELETE FROM totals WHERE t < ?', (cutoff - cutoff % 3600,))
+        db.execute('DELETE FROM replies WHERE hour < ?', (cutoff - cutoff % 3600,))
+        db.execute('DELETE FROM contacts WHERE last < ?', (int(time.time()) - 86400,))
         db.execute('DELETE FROM sources WHERE last < ?', (cutoff,))
 
 
@@ -241,6 +329,7 @@ def main():
     db = connect()
     devices, blocklist_rules = read_config()
     read_logs(db, devices, blocklist_rules, cutoff)
+    read_states(db)       # after the log: a packet counts as a reply to a connection seen before it, not after
     geo_changed = load_geo(db)
     if geo_changed is not None:
         fill_countries(db)

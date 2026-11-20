@@ -43,7 +43,9 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import connect, period_start, DAYS, PERIODS  # noqa: E402
+from common import connect, country, period_start, hits_table, DAYS, PERIODS  # noqa: E402
+
+TABLE = 'hits'          # the rows the current request's period is added up from (see since())
 
 PORT_SORT = {'port': 'port', 'service': 'port', 'packets': 'packets', 'sources': 'sources'}
 SOURCE_SORT = {'ip': 'ip', 'country': 'country', 'packets': 'packets', 'ports': 'ports',
@@ -64,7 +66,9 @@ def since(hours):
         hours = float(hours)
     except ValueError:
         hours = 24
-    hours = min(max(hours, 1), DAYS * 24)
+    hours = int(min(max(hours, 1), DAYS * 24))
+    global TABLE
+    TABLE = hits_table(hours)
     return period_start(hours, int(time.time()))
 
 
@@ -97,7 +101,7 @@ def port_row(proto, port, packets, sources):
 
 def ports_query(db, start, where='', args=(), order='packets DESC', limit=5, offset=0):
     return [port_row(*r) for r in db.execute(
-        'SELECT proto, port, sum(packets) packets, count(DISTINCT ip) sources FROM hits '
+        'SELECT proto, port, sum(packets) packets, count(DISTINCT ip) sources FROM ' + TABLE + ' '
         'WHERE hour >= ? %s GROUP BY proto, port ORDER BY %s, proto, port LIMIT ? OFFSET ?' % (where, order),
         (start, *args, limit, offset))]
 
@@ -105,12 +109,12 @@ def ports_query(db, start, where='', args=(), order='packets DESC', limit=5, off
 def sources_query(db, start, where='', args=(), order='packets DESC', limit=5, offset=0):
     rows = db.execute(
         'SELECT h.ip, s.country, sum(h.packets) packets, count(DISTINCT h.proto || h.port) ports, sum(h.listed) listed, '
-        's.first, s.last FROM hits h LEFT JOIN sources s ON s.ip = h.ip '
+        's.first, s.last FROM ' + TABLE + ' h LEFT JOIN sources s ON s.ip = h.ip '
         'WHERE h.hour >= ? %s GROUP BY h.ip ORDER BY %s, h.ip LIMIT ? OFFSET ?' % (where, order),
         (start, *args, limit, offset)).fetchall()
     result = []
     for ip, cc, packets, ports, listed, first, last in rows:
-        top = db.execute('SELECT proto, port FROM hits WHERE ip = ? AND hour >= ? GROUP BY proto, port '
+        top = db.execute('SELECT proto, port FROM ' + TABLE + ' WHERE ip = ? AND hour >= ? GROUP BY proto, port '
                          'ORDER BY sum(packets) DESC LIMIT 1', (ip, start)).fetchone()
         result.append({'ip': ip, 'country': cc or '', 'packets': packets, 'ports': ports, 'listed': listed,
                        'blocklist': listed > 0, 'first': first, 'last': last,
@@ -124,23 +128,32 @@ def summary(db, hours):
         return fast_summary(db, int(hours), agg)
     start = since(hours)
     packets, listed, sources = db.execute(
-        'SELECT coalesce(sum(packets), 0), coalesce(sum(listed), 0), count(DISTINCT ip) FROM hits WHERE hour >= ?',
+        'SELECT coalesce(sum(packets), 0), coalesce(sum(listed), 0), count(DISTINCT ip) FROM ' + TABLE + ' WHERE hour >= ?',
         (start,)).fetchone()
     countries = [{'country': cc, 'packets': n, 'sources': s} for cc, n, s in db.execute(
-        "SELECT coalesce(s.country, '') cc, sum(h.packets) n, count(DISTINCT h.ip) FROM hits h "
+        "SELECT coalesce(s.country, '') cc, sum(h.packets) n, count(DISTINCT h.ip) FROM " + TABLE + " h "
         'LEFT JOIN sources s ON s.ip = h.ip WHERE h.hour >= ? GROUP BY cc ORDER BY n DESC', (start,))]
     first = db.execute('SELECT min(hour) FROM hits').fetchone()[0]
     step, points = series(db, start)
     geo = db.execute("SELECT value FROM meta WHERE key = 'geo'").fetchone()
     return {'since': start, 'data_since': first, 'packets': packets, 'listed': listed, 'sources': sources,
             'geoip': bool(geo and geo[0]), 'countries': countries, 'step': step, 'series': points,
-            'ports': ports_query(db, start), 'top_sources': sources_query(db, start)}
+            'ports': ports_query(db, start), 'top_sources': sources_query(db, start), **replies(db, start)}
+
+
+def replies(db, start):
+    """ blocked packets that were late replies to your own connections (not counted as probes), and the top sources """
+    total = db.execute('SELECT coalesce(sum(replies), 0) FROM totals WHERE t >= ?', (start,)).fetchone()[0]
+    top = [{'ip': ip, 'country': country(db, ip), 'packets': n} for ip, n in db.execute(
+        'SELECT ip, sum(packets) n FROM replies WHERE hour >= ? GROUP BY ip ORDER BY n DESC LIMIT 5',
+        (start - start % 3600,))]
+    return {'replies': total, 'reply_sources': top}
 
 
 def series(db, start):
-    """ the graph: 5-minute steps for a day or two, hourly for up to 10 days, then 4-hourly """
+    """ the graph: a point a minute for a few hours, 5 minutes for a day or two, hourly for up to 10 days, then 4-hourly """
     span = int(time.time()) - start
-    step = 300 if span <= 2 * 86400 else 3600 if span <= 10 * 86400 else 4 * 3600
+    step = 60 if span <= 4 * 3600 else 300 if span <= 2 * 86400 else 3600 if span <= 10 * 86400 else 4 * 3600
     return step, db.execute('SELECT t - t % ? s, sum(packets), sum(listed) FROM totals WHERE t >= ? GROUP BY s ORDER BY s',
                             (step, start)).fetchall()
 
@@ -157,7 +170,8 @@ def fast_summary(db, hours, agg):
         'step': step, 'series': points,
         'ports': [port_row(*r) for r in db.execute(AGG_PORTS + 'WHERE period = ? ORDER BY packets DESC LIMIT 5', (hours,))],
         'top_sources': [agg_source_row(*r) for r in db.execute(
-            AGG_SOURCES + 'WHERE period = ? ORDER BY packets DESC LIMIT 5', (hours,))]
+            AGG_SOURCES + 'WHERE period = ? ORDER BY packets DESC LIMIT 5', (hours,))],
+        **replies(db, start)
     }
 
 
@@ -173,8 +187,8 @@ def fast_grid(db, kind, hours, order, text, offset, limit):
         query, row = AGG_PORTS, port_row
     else:
         codes, text = split_search(text)
-        if text.isdigit():
-            return None                         # sources that tried this port: only the hourly rows know
+        if text.isdigit() or port_search(text):
+            return None                         # sources that tried a port: only the hourly rows know
         if codes:
             where += ' AND country IN (%s)' % ','.join('?' * len(codes))
             args += codes
@@ -200,6 +214,22 @@ def country_codes(text):
     if not text.lower().startswith('cc:'):
         return []
     return [c.upper() for c in text[3:].split(',') if len(c) == 2 and c.isalpha()][:300]
+
+
+PROTOCOLS = {'tcp', 'udp', 'icmp', 'ipv6-icmp', 'igmp', 'gre', 'esp', 'ah', 'sctp'}
+
+
+def port_search(text):
+    """ 'udp/53' or 'icmp' (a Ports row clicked): :return: (protocol, port or None), or None """
+    text = text.strip().lower()
+    if '/' in text:
+        proto, _, port = text.partition('/')
+        if proto in PROTOCOLS and port.isdigit():
+            return proto, int(port)
+        return None
+    if text in PROTOCOLS - {'tcp', 'udp'}:
+        return text, None
+    return None
 
 
 def split_search(text):
@@ -235,6 +265,12 @@ def search_clause(kind, text):
         where, args = 'AND s.country IN (%s)' % ','.join('?' * len(codes)), tuple(codes)
     if not text:
         return where, args
+    proto_port = port_search(text)
+    if proto_port:
+        proto, port = proto_port
+        if port is None:
+            return where + ' AND h.proto = ?', args + (proto,)
+        return where + ' AND h.proto = ? AND h.port = ?', args + (proto, port)
     if len(text) == 2 and text.isalpha():
         return where + ' AND (s.country = ? OR h.ip LIKE ?)', args + (text.upper(), text + '%')
     if text.isdigit():
@@ -262,11 +298,11 @@ def grid(db, kind, hours, sort, direction, offset, limit, text=''):
     where, args = search_clause(kind, text)
     if kind == 'ports':
         rows = ports_query(db, start, where, args, order, limit, offset)
-        total = db.execute('SELECT count(*) FROM (SELECT 1 FROM hits WHERE hour >= ? %s GROUP BY proto, port)'
+        total = db.execute('SELECT count(*) FROM (SELECT 1 FROM ' + TABLE + ' WHERE hour >= ? %s GROUP BY proto, port)'
                            % where, (start, *args)).fetchone()[0]
     else:
         rows = sources_query(db, start, where, args, order, limit, offset)
-        total = db.execute('SELECT count(*) FROM (SELECT 1 FROM hits h LEFT JOIN sources s ON s.ip = h.ip '
+        total = db.execute('SELECT count(*) FROM (SELECT 1 FROM ' + TABLE + ' h LEFT JOIN sources s ON s.ip = h.ip '
                            'WHERE h.hour >= ? %s GROUP BY h.ip)' % where, (start, *args)).fetchone()[0]
     return {'rows': rows, 'total': total}
 
@@ -278,16 +314,16 @@ def source(db, ip, hours):
         return {'error': 'not an address'}
     start = since(hours)
     info = db.execute('SELECT country, first, last FROM sources WHERE ip = ?', (ip,)).fetchone()
-    hourly = db.execute('SELECT hour, sum(packets) FROM hits WHERE ip = ? AND hour >= ? GROUP BY hour ORDER BY hour',
+    hourly = db.execute('SELECT hour, sum(packets) FROM ' + TABLE + ' WHERE ip = ? AND hour >= ? GROUP BY hour ORDER BY hour',
                         (ip, start)).fetchall()
-    ports = db.execute('SELECT proto, port, sum(packets) n, sum(listed) FROM hits WHERE ip = ? AND hour >= ? '
+    ports = db.execute('SELECT proto, port, sum(packets) n, sum(listed) FROM ' + TABLE + ' WHERE ip = ? AND hour >= ? '
                        'GROUP BY proto, port ORDER BY n DESC LIMIT 100', (ip, start)).fetchall()
-    nports = db.execute('SELECT count(*) FROM (SELECT 1 FROM hits WHERE ip = ? AND hour >= ? GROUP BY proto, port)',
+    nports = db.execute('SELECT count(*) FROM (SELECT 1 FROM ' + TABLE + ' WHERE ip = ? AND hour >= ? GROUP BY proto, port)',
                         (ip, start)).fetchone()[0]
     return {'ip': ip, 'country': (info[0] if info else '') or '', 'first': info[1] if info else None,
             'last': info[2] if info else None, 'since': start,
             'packets': sum(n for _, n in hourly), 'listed': sum(r[3] for r in ports) > 0, 'nports': nports,
-            'hours': hourly,
+            'hours': hourly, 'step': 300 if TABLE == 'hits5' else 3600,
             'ports': [{'proto': p, 'port': q if q >= 0 else None, 'service': service(p, q), 'packets': n}
                       for p, q, n, _ in ports]}
 

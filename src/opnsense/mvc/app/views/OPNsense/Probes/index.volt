@@ -31,6 +31,10 @@ POSSIBILITY OF SUCH DAMAGE.
     .probes-totals { font-size: 13px; }
     .probes-key { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin: 0 4px 0 2px; }
     .probes-note { color: #888; font-size: 12px; }
+    .probes-whois-btn { float: right; margin-left: 12px; }
+    .probes-whois-table { width: auto; margin-bottom: 2px; }
+    .probes-whois-table th { color: #888; font-weight: normal; padding-right: 16px !important; white-space: nowrap; }
+    .probes-replies { color: #888; border-bottom: 1px dotted #888; cursor: help; }
     .probes-section { padding: 0 15px 10px; }
     .probes-section h3 { font-size: 14px; font-weight: bold; margin: 12px 0 6px; }
     #probes-tab-map h3 { margin-top: 6px; }
@@ -107,7 +111,8 @@ POSSIBILITY OF SUCH DAMAGE.
                         scales: {
                             x: {ticks: {maxTicksLimit: 8, maxRotation: 0, color: '#888', callback: function (v) {
                                 const d = new Date(this.getLabelForValue(v));
-                                return hours <= 48 ? d.toLocaleTimeString([], {hour: 'numeric'})
+                                return hours <= 3 ? d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})
+                                    : hours <= 48 ? d.toLocaleTimeString([], {hour: 'numeric'})
                                     : d.toLocaleDateString([], {month: 'short', day: 'numeric'});
                             }}, grid: {display: false}},
                             y: {beginAtZero: true, ticks: {color: '#888', maxTicksLimit: 5}, grid: {color: 'rgba(128,128,128,0.15)'},
@@ -160,8 +165,9 @@ POSSIBILITY OF SUCH DAMAGE.
                 })
                 .on('mouseout', () => tip.hide())
                 .on('click', f => { if (byCc[f.id]) showCountry(f.id); });
-            $('#probes-legend').html(`<span>{{ lang._('fewer') }}</span><span class="probes-ramp"
-                style="background: linear-gradient(to right, ${color(0)}, ${color(1)})"></span><span>{{ lang._('more packets') }}</span>`);
+            $('#probes-legend').html(`<span>1</span><span class="probes-ramp"
+                style="background: linear-gradient(to right, ${color(0)}, ${color(1)})"></span>
+                <span>${num(max)} {{ lang._('packets (log scale)') }}</span>`);
         }
         function drawCountries() {
             const rows = summary.countries.slice(0, 12);
@@ -185,6 +191,11 @@ POSSIBILITY OF SUCH DAMAGE.
                 `<span class="probes-key" style="background:${BLUE}"></span><strong>${num(s.packets)}</strong> {{ lang._('packets blocked') }}`
                 + ` &nbsp;<span class="probes-key" style="background:${RED}"></span><strong>${num(s.listed)}</strong> {{ lang._('by blocklists') }}`
                 + ` &nbsp;· <strong>${num(s.sources)}</strong> {{ lang._('sources') }}`);
+            if (s.replies) {
+                const who = (s.reply_sources || []).map(r => `${r.ip}${r.country ? ' (' + countryName(r.country) + ')' : ''}: ${num(r.packets)}`);
+                $('#probes-totals').append(` &nbsp;· <span class="probes-replies" title="${esc('{{ lang._('Blocked packets from addresses your network had just connected to: late replies to connections that already closed, or a peer-to-peer VPN trying ports. Most:') }}\n' + who.join('\n'))}">`
+                    + `${num(s.replies)} {{ lang._('late replies not counted') }}</span>`);
+            }
             const note = [];
             if (s.data_since && s.data_since > s.since + 3600) note.push('{{ lang._('Data since') }} ' + when(s.data_since));
             $('#probes-note').text(note.join(' · '));
@@ -209,7 +220,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
         /* ---- the grids ---- */
         const formatters = {
-            port: (column, row) => esc(portText(row)),
+            port: (column, row) => `<a href="#" class="probes-port" data-q="${esc(portText(row))}"
+                title="{{ lang._('Sources that tried it') }}">${esc(portText(row))}</a>`,
             service: (column, row) => esc(row.service || ''),
             num: (column, row) => num(row[column.id]),
             ip: (column, row) => `<a href="#" class="probes-source" data-ip="${esc(row.ip)}">${esc(row.ip)}</a>`
@@ -261,6 +273,39 @@ POSSIBILITY OF SUCH DAMAGE.
         }
 
 
+        /* a port: the sources that tried it (all countries) */
+        $(document).on('click', '.probes-port', function (e) {
+            e.preventDefault();
+            $('#probes-country').val('').selectpicker('refresh');
+            $('a[href="#probes-tab-sources"]').tab('show');
+            /* core's grid (opnsense_bootgrid.js) searches on keyup of its search box, and shows its clear button on input */
+            $('#grid-sources-search-field').val($(this).data('q')).trigger('input').trigger($.Event('keyup', {which: 13}));
+        });
+
+        /* who an address belongs to: asks its regional registry (RDAP), only when the Whois button is pressed */
+        function whois(ip, target, done) {
+            ajaxGet('/api/probes/report/whois/' + encodeURIComponent(ip), {}, function (w) {
+                done();
+                if (!w || w.error) {
+                    target.hide().html(`<p class="probes-note">{{ lang._('Whois') }}: ${esc(w && w.error ? w.error : '{{ lang._('no answer') }}')}</p>`).slideDown(200);
+                    return;
+                }
+                const rows = [
+                    ['{{ lang._('Owner') }}', w.owner],
+                    ['{{ lang._('Network') }}', [w.name, w.handle && w.handle !== w.name ? `(${w.handle})` : ''].join(' ')],
+                    ['{{ lang._('Range') }}', w.cidr && !w.cidr.includes(',') ? w.cidr : w.range],
+                    ['{{ lang._('Country') }}', w.country ? countryName(w.country) : ''],
+                    ['{{ lang._('Abuse contact') }}', (w.abuse || []).join(', ')],
+                    ['{{ lang._('Registered') }}', [w.registered, w.changed ? `{{ lang._('changed') }} ${w.changed}` : ''].filter(Boolean).join(' · ')],
+                    ['{{ lang._('Remarks') }}', w.description !== w.owner ? w.description : ''],
+                ].filter(r => r[1] && String(r[1]).trim());
+                target.hide().html(`<table class="table table-condensed probes-whois-table"><tbody>`
+                    + rows.map(r => `<tr><th>${r[0]}</th><td>${esc(r[1])}</td></tr>`).join('')
+                    + `</tbody></table><p class="probes-note">{{ lang._('From') }} <a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.registry)}</a>`
+                    + ` · ${esc(when(w.fetched))}</p>`).slideDown(250);
+            });
+        }
+
         /* ---- one source ---- */
         $(document).on('click', '.probes-source', function (e) {
             e.preventDefault();
@@ -268,9 +313,12 @@ POSSIBILITY OF SUCH DAMAGE.
             ajaxGet('/api/probes/report/source/' + encodeURIComponent(ip) + '/' + hours, {}, function (d) {
                 if (!d || d.error) return;
                 const body = $('<div/>');
+                body.append(`<button type="button" class="btn btn-default btn-xs probes-whois-btn" title="{{ lang._('Ask the registry who this address belongs to') }}">`
+                    + `<i class="fa fa-fw fa-id-card-o"></i> {{ lang._('Whois') }}</button>`);
                 body.append(`<p>${esc(countryName(d.country))}${d.listed ? ' <span class="probes-tag">{{ lang._('blocklist') }}</span>' : ''}<br>
                     <span class="probes-note">{{ lang._('First seen') }} ${esc(when(d.first))} · {{ lang._('last seen') }} ${esc(when(d.last))}</span><br>
                     <strong>${num(d.packets)}</strong> {{ lang._('packets') }} · <strong>${num(d.nports)}</strong> ${d.nports === 1 ? '{{ lang._('port') }}' : '{{ lang._('ports') }}'}</p>`);
+                body.append('<div class="probes-whois"></div>');
                 body.append('<div style="height: 140px"><canvas></canvas></div>');
                 body.append(`<table class="table table-condensed table-striped probes-detail-ports"><thead><tr>
                     <th>{{ lang._('Port') }}</th><th>{{ lang._('Service') }}</th><th class="text-right">{{ lang._('Packets') }}</th></tr></thead><tbody>`
@@ -279,21 +327,27 @@ POSSIBILITY OF SUCH DAMAGE.
                 BootstrapDialog.show({
                     title: esc(d.ip), message: body, size: BootstrapDialog.SIZE_WIDE,
                     buttons: [{label: '{{ lang._('Close') }}', action: dlg => dlg.close()}],
-                    onshown: function () {
+                    onshown: function (dlg) {
+                        body.find('.probes-whois-btn').on('click', function () {
+                            const btn = $(this).prop('disabled', true);
+                            btn.find('i').attr('class', 'fa fa-fw fa-spinner fa-pulse');
+                            whois(d.ip, body.find('.probes-whois'), () => btn.find('i').attr('class', 'fa fa-fw fa-id-card-o'));
+                        });
                         /* every hour of the period, empty ones too */
                         const filled = new Map(d.hours.map(h => [h[0], h[1]]));
                         const labels = [], values = [];
                         const now = Math.floor(Date.now() / 1000);
-                        for (let t = d.since; t <= now; t += 3600) { labels.push(t * 1000); values.push(filled.get(t) || 0); }
+                        for (let t = d.since; t <= now; t += d.step) { labels.push(t * 1000); values.push(filled.get(t) || 0); }
                         new Chart(body.find('canvas')[0].getContext('2d'), {
                             type: 'bar',
                             data: {labels: labels, datasets: [{data: values, backgroundColor: d.listed ? RED : BLUE}]},
                             options: {maintainAspectRatio: false, animation: false, plugins: {legend: {display: false}, tooltip: {callbacks: {
-                                title: items => new Date(labels[items[0].dataIndex]).toLocaleString([], {weekday: 'short', hour: 'numeric'}),
+                                title: items => new Date(labels[items[0].dataIndex]).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'}),
                                 label: c => `${num(c.raw)} {{ lang._('packets') }}`}}},
                                 scales: {x: {ticks: {maxTicksLimit: 6, maxRotation: 0, color: '#888', callback: function (v) {
                                     const t = new Date(this.getLabelForValue(v));
-                                    return hours <= 48 ? t.toLocaleTimeString([], {hour: 'numeric'}) : t.toLocaleDateString([], {month: 'short', day: 'numeric'});
+                                    return hours <= 3 ? t.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})
+                                        : hours <= 48 ? t.toLocaleTimeString([], {hour: 'numeric'}) : t.toLocaleDateString([], {month: 'short', day: 'numeric'});
                                 }}, grid: {display: false}}, y: {beginAtZero: true, ticks: {color: '#888', maxTicksLimit: 4}}}}
                         });
                     }
@@ -324,6 +378,8 @@ POSSIBILITY OF SUCH DAMAGE.
 <div class="content-box">
     <div class="probes-bar">
         <div class="btn-group probes-period">
+            <button type="button" class="btn btn-default btn-sm" data-hours="1">{{ lang._('1 hour') }}</button>
+            <button type="button" class="btn btn-default btn-sm" data-hours="3">{{ lang._('3 hours') }}</button>
             <button type="button" class="btn btn-default btn-sm" data-hours="24">{{ lang._('24 hours') }}</button>
             <button type="button" class="btn btn-default btn-sm" data-hours="168">{{ lang._('7 days') }}</button>
             <button type="button" class="btn btn-default btn-sm" data-hours="720">{{ lang._('30 days') }}</button>
@@ -334,7 +390,7 @@ POSSIBILITY OF SUCH DAMAGE.
     <div class="probes-section">
         <div style="height: 200px"><canvas id="probes-chart"></canvas></div>
     </div>
-    <p class="probes-note" style="padding: 0 15px">{{ lang._('Packets blocked coming in on the WAN by rules that log (the default deny rule does, unless turned off).') }}</p>
+    <p class="probes-note" style="padding: 0 15px">{{ lang._('Packets blocked coming in on the WAN by rules that log (the default deny rule does, unless turned off), except late replies to your own connections.') }}</p>
 </div>
 
 <ul class="nav nav-tabs" data-tabs="tabs" style="margin-top: 15px">

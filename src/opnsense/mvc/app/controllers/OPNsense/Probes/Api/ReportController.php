@@ -70,6 +70,17 @@ class ReportController extends ApiControllerBase
         return $this->query(['source', $ip, $this->hours($hours)]);
     }
 
+    /* who an address belongs to, from its regional registry (looked up only when asked, kept a week) */
+    public function whoisAction($ip = '')
+    {
+        $ip = rawurldecode($ip);
+        if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
+            return ['error' => 'not an address'];
+        }
+        $data = json_decode((new Backend())->configdpRun('probes whois', [$ip]) ?? '', true);
+        return is_array($data) ? $data : ['error' => 'no response'];
+    }
+
     public function searchPortsAction()
     {
         return $this->grid('ports');
@@ -96,7 +107,7 @@ class ReportController extends ApiControllerBase
                 $dir = strtolower((string)$sorting[$col]) === 'asc' ? 'asc' : 'desc';
             }
         }
-        $search = preg_replace('/[^A-Za-z0-9.:,_ -]/', '', (string)$this->request->getPost('searchPhrase', null, ''));
+        $search = preg_replace('#[^A-Za-z0-9.:,_ /-]#', '', (string)$this->request->getPost('searchPhrase', null, ''));
         $country = (string)$this->request->getPost('country', null, '');
         if ($kind == 'sources' && preg_match('/^[A-Z]{2}$/', $country)) {
             $search = 'cc:' . $country . ' ' . $search;

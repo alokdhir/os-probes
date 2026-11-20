@@ -27,6 +27,7 @@
     What the collector and the queries share: the database, and which interfaces and rules count.
 """
 
+import ipaddress
 import os
 import sqlite3
 import xml.etree.ElementTree as ET
@@ -34,7 +35,10 @@ import xml.etree.ElementTree as ET
 CONFIG = '/conf/config.xml'
 DB = '/var/db/probes/probes.db'
 DAYS = 30                       # how long the hourly totals are kept
-PERIODS = (24, 168, 720)        # the page's periods (hours): their totals are kept ready, see collect.rollup()
+PERIODS = (1, 3, 24, 168, 720)  # the page's periods (hours): their totals are kept ready, see collect.rollup()
+RECENT = 3                      # hours kept per 5 minutes too, for the short periods
+REPLY_WINDOW = 3600             # a packet from an address your network contacted this recently is a late reply
+VERSION = '2'                   # the tables' layout: another one starts the database over (the log is read again)
 
 # the same tests as the Health collector (Stats/Probes.php)
 LIST_TYPES = {'url', 'urltable', 'urljson'}
@@ -49,8 +53,22 @@ CREATE TABLE IF NOT EXISTS hits (
     PRIMARY KEY (hour, ip, proto, port)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS hits_ip ON hits (ip, hour);
--- the same packets per 5 minutes, for the graph
-CREATE TABLE IF NOT EXISTS totals (t INTEGER PRIMARY KEY, packets INTEGER, listed INTEGER);
+-- the same per 5 minutes ("hour" is the start of the 5 minutes), for the last RECENT hours
+CREATE TABLE IF NOT EXISTS hits5 (
+    hour INTEGER, ip TEXT, proto TEXT, port INTEGER, packets INTEGER, listed INTEGER,
+    PRIMARY KEY (hour, ip, proto, port)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS hits5_ip ON hits5 (ip, hour);
+-- the same packets per minute, for the graph; replies: blocked packets that were late replies (not in hits)
+CREATE TABLE IF NOT EXISTS totals (t INTEGER PRIMARY KEY, packets INTEGER, listed INTEGER, replies INTEGER);
+-- addresses your network connected to (outbound passes in the log, and the firewall's states), and when last
+CREATE TABLE IF NOT EXISTS contacts (ip TEXT PRIMARY KEY, last INTEGER) WITHOUT ROWID;
+-- blocked packets from those addresses soon after (see REPLY_WINDOW): replies to a connection that already
+-- closed, or a peer-to-peer VPN trying ports, not probes; per hour, source and port
+CREATE TABLE IF NOT EXISTS replies (
+    hour INTEGER, ip TEXT, proto TEXT, port INTEGER, packets INTEGER,
+    PRIMARY KEY (hour, ip, proto, port)
+) WITHOUT ROWID;
 -- country: ISO code, '' when looked up and unknown, NULL when not looked up yet
 CREATE TABLE IF NOT EXISTS sources (ip TEXT PRIMARY KEY, country TEXT, first INTEGER, last INTEGER) WITHOUT ROWID;
 -- per period, the totals the page shows, rebuilt every few minutes (a scanner sends a packet or two per port, so
@@ -70,8 +88,16 @@ CREATE TABLE IF NOT EXISTS geo6 (start BLOB PRIMARY KEY, end BLOB, cc TEXT) WITH
 
 
 def period_start(hours, now):
-    """ the first hour of a period: the current hour plus the ones before it """
+    """ where a period starts: in whole hours (the current one and the ones before it), or for the short periods
+        in 5 minutes (the current 5 minutes and the ones before it) """
+    if int(hours) <= RECENT:
+        return now - now % 300 - int(hours) * 3600 + 300
     return now - now % 3600 - (int(hours) - 1) * 3600
+
+
+def hits_table(hours):
+    """ the rows a period is added up from """
+    return 'hits5' if int(hours) <= RECENT else 'hits'
 
 
 def connect(readonly=False):
@@ -82,8 +108,33 @@ def connect(readonly=False):
     os.makedirs(os.path.dirname(DB), mode=0o750, exist_ok=True)
     db = sqlite3.connect(DB, timeout=30)
     db.execute('PRAGMA journal_mode=WAL')
+    db.execute('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)')
+    version = db.execute("SELECT value FROM meta WHERE key = 'version'").fetchone()
+    if not version or version[0] != VERSION:
+        # an older layout: start over, keeping the GeoIP lists, and read the log again
+        with db:
+            for (table,) in db.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT IN "
+                                       "('meta', 'geo4', 'geo6')").fetchall():
+                db.execute('DROP TABLE %s' % table)
+            db.execute("DELETE FROM meta WHERE key NOT IN ('geo')")
+            db.execute("INSERT INTO meta (key, value) VALUES ('version', ?)", (VERSION,))
     db.executescript(SCHEMA)
     return db
+
+
+def country(db, ip):
+    """ the country of an address from the GeoIP lists: ISO code, or '' when unknown """
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return ''
+    if addr.version == 4:
+        row = db.execute('SELECT end, cc FROM geo4 WHERE start <= ? ORDER BY start DESC LIMIT 1',
+                         (int(addr),)).fetchone()
+        return row[1] if row and int(addr) <= row[0] else ''
+    row = db.execute('SELECT end, cc FROM geo6 WHERE start <= ? ORDER BY start DESC LIMIT 1',
+                     (addr.packed,)).fetchone()
+    return row[1] if row and addr.packed <= row[0] else ''
 
 
 def text(node, path):

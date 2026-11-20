@@ -62,7 +62,8 @@ while read -r f; do
 done < "$NEW"
 install -o root -g wheel -m 644 "$NEW" "$MANIFEST"
 rm -f "$NEW"
-chmod 755 "$PREFIX/opnsense/scripts/probes/collect.py" "$PREFIX/opnsense/scripts/probes/query.py"
+chmod 755 "$PREFIX/opnsense/scripts/probes/collect.py" "$PREFIX/opnsense/scripts/probes/query.py" \
+    "$PREFIX/opnsense/scripts/probes/whois.py"
 
 # the menu and ACL are cached, configd reads its actions at start, and the collector's cron job comes from
 # plugins.inc.d/probes.inc

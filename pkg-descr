@@ -3,7 +3,9 @@ blocked coming in on your WAN, from the firewall log. Reporting, Probes has a
 graph (all blocked packets, and those blocked by blocklists such as Spamhaus
 DROP), searchable lists of sources and ports, each source's detail, and a
 world map by country (from the GeoIP database OPNsense downloads for GeoIP
-aliases). A dashboard widget shows the last 24 hours. 30 days are kept.
+aliases). Late replies to your own connections aren't counted as probes, and
+a Whois button looks up who owns an address (RDAP, only when pressed). A
+dashboard widget shows the last 24 hours. 30 days are kept.
 
 Plugin Changelog
 ================
