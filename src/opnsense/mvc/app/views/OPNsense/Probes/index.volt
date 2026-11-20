@@ -277,12 +277,15 @@ POSSIBILITY OF SUCH DAMAGE.
 
 
         /* a port: the sources that tried it (all countries) */
-        $(document).on('click', '.probes-port', function (e) {
-            e.preventDefault();
+        function showPort(q) {
             $('#probes-country').val('').selectpicker('refresh');
             $('a[href="#probes-tab-sources"]').tab('show');
             /* core's grid (opnsense_bootgrid.js) searches on keyup of its search box, and shows its clear button on input */
-            $('#grid-sources-search-field').val($(this).data('q')).trigger('input').trigger($.Event('keyup', {which: 13}));
+            $('#grid-sources-search-field').val(q).trigger('input').trigger($.Event('keyup', {which: 13}));
+        }
+        $(document).on('click', '.probes-port', function (e) {
+            e.preventDefault();
+            showPort($(this).data('q'));
         });
 
         /* who an address belongs to: asks its regional registry (RDAP), only when the Whois button is pressed */
@@ -314,7 +317,9 @@ POSSIBILITY OF SUCH DAMAGE.
         /* ---- one source ---- */
         $(document).on('click', '.probes-source', function (e) {
             e.preventDefault();
-            const ip = $(this).data('ip');
+            showSource($(this).data('ip'));
+        });
+        function showSource(ip) {
             ajaxGet('/api/probes/report/source/' + encodeURIComponent(ip) + '/' + hours, {}, function (d) {
                 if (!d || d.error) return;
                 const body = $('<div/>');
@@ -358,7 +363,7 @@ POSSIBILITY OF SUCH DAMAGE.
                     }
                 });
             });
-        });
+        }
 
         /* ---- period ---- */
         $('.probes-period .btn').click(function () {
@@ -374,6 +379,16 @@ POSSIBILITY OF SUCH DAMAGE.
         $('#probes-countrypick').detach().insertAfter($('#grid-sources-header .actionBar .search'));
         $('#probes-country').selectpicker().on('changed.bs.select', () => $('#grid-sources').bootgrid('reload'));
         grid('grid-ports', '/api/probes/report/search_ports');
+        /* links from the dashboard widget: #source=<ip> opens a source, #port=tcp/23 lists the sources that tried it */
+        function route() {
+            const m = /^#(source|port)=(.+)$/.exec(window.location.hash);
+            if (!m) return;
+            history.replaceState(null, '', window.location.pathname);
+            const value = decodeURIComponent(m[2]);
+            if (m[1] === 'source') showSource(value); else showPort(value);
+        }
+        $('#grid-sources').one('loaded.rs.jquery.bootgrid', route);
+        $(window).on('hashchange', route);
         load();
         setInterval(() => { if (!document.hidden) load(); }, 60000);
     });

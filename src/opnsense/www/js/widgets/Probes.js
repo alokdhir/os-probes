@@ -156,12 +156,15 @@ export default class Probes extends BaseWidget {
             $('#probes-w-top').html(`<div class="pw-sub" style="margin-top: 8px">${this.translations.nolog}</div>`);
             return;
         }
+        // each links to the page: a port to the sources that tried it, a source to its detail
+        const link = (kind, value, text) => `<a href="/ui/probes/#${kind}=${encodeURIComponent(value)}">${text}</a>`;
+        const portName = r => r.port !== null && r.port !== undefined ? `${r.proto}/${r.port}` : r.proto;
         const ports = d.ports.map(r => this.row(
-            (r.service ? `${Probes.esc(r.service)} <span class="pw-sub">${Probes.port(r)}</span>` : Probes.port(r)),
+            link('port', portName(r), r.service ? `${Probes.esc(r.service)} <span class="pw-sub">${Probes.port(r)}</span>` : Probes.port(r)),
             `${Probes.count(r.sources)} ${r.sources === 1 ? this.translations.source : this.translations.sources}`,
             Probes.count(r.packets)));
         const sources = d.top_sources.map(r => this.row(
-            Probes.esc(r.ip) + (r.country ? ` <span class="pw-sub">${Probes.esc(r.country)}</span>` : '')
+            link('source', r.ip, Probes.esc(r.ip)) + (r.country ? ` <span class="pw-sub">${Probes.esc(r.country)}</span>` : '')
                 + (r.blocklist ? `<span class="pw-tag" style="background:${this.colors.blocklist[0]}">${this.translations.listed}</span>` : ''),
             `${Probes.count(r.ports)} ${r.ports === 1 ? this.translations.port : this.translations.ports} · ${this.translations.mostly} ${Probes.port(r.top)}`,
             Probes.count(r.packets)));
