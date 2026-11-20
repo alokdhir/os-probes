@@ -32,7 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
     .probes-key { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin: 0 4px 0 2px; }
     .probes-note { color: #888; font-size: 12px; }
     .probes-whois-btn { float: right; margin-left: 12px; }
-    .probes-whois-table { width: auto; margin-bottom: 2px; }
+    .probes-whois-table { width: auto; margin-bottom: 14px; }
     .probes-whois-table th { color: #888; font-weight: normal; padding-right: 16px !important; white-space: nowrap; }
     .probes-replies { color: #888; border-bottom: 1px dotted #888; cursor: help; }
     .probes-section { padding: 0 15px 10px; }
@@ -302,11 +302,12 @@ POSSIBILITY OF SUCH DAMAGE.
                     ['{{ lang._('Abuse contact') }}', (w.abuse || []).join(', ')],
                     ['{{ lang._('Registered on') }}', [w.registered, w.changed ? `{{ lang._('changed') }} ${w.changed}` : ''].filter(Boolean).join(' · ')],
                     ['{{ lang._('Remarks') }}', w.description !== w.owner ? w.description : ''],
-                ].filter(r => r[1] && String(r[1]).trim());
+                ].filter(r => r[1] && String(r[1]).trim()).map(r => [r[0], esc(r[1])]);
+                rows.push(['{{ lang._('Looked up') }}', `<a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.registry)}</a>`
+                    + `<span class="probes-note"> · ${esc(when(w.fetched))}</span>`]);
                 target.hide().html(`<table class="table table-condensed probes-whois-table"><tbody>`
-                    + rows.map(r => `<tr><th>${r[0]}</th><td>${esc(r[1])}</td></tr>`).join('')
-                    + `</tbody></table><p class="probes-note">{{ lang._('From') }} <a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.registry)}</a>`
-                    + ` · ${esc(when(w.fetched))}</p>`).slideDown(250);
+                    + rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join('')
+                    + `</tbody></table>`).slideDown(250);
             });
         }
 
