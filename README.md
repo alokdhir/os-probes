@@ -38,7 +38,7 @@ Inside the OPNsense GUI, you get the probing over time, every source with its co
 
 **Dashboard widget**: the last 24 hours.
 
-<img src="docs/images/widget.png" width="443" alt="The Probes dashboard widget">
+<img src="docs/images/widget.png" width="352" alt="The Probes dashboard widget">
 
 ## What it counts
 
