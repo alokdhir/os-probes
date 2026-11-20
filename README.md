@@ -26,7 +26,7 @@ Inside the OPNsense GUI, you get the probing over time, every source with its co
 
 **A source**: when it was active, and every port it tried.
 
-![A source's detail: packets per hour and the ports it tried](docs/images/source.png)
+<img src="docs/images/source.png" width="700" alt="A source's detail: packets per hour and the ports it tried">
 
 **Ports**: what gets tried, and by how many sources.
 
@@ -38,7 +38,7 @@ Inside the OPNsense GUI, you get the probing over time, every source with its co
 
 **Dashboard widget**: the last 24 hours.
 
-![The Probes dashboard widget](docs/images/widget.png)
+<img src="docs/images/widget.png" width="443" alt="The Probes dashboard widget">
 
 ## What it counts
 
