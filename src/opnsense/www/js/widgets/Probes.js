@@ -100,7 +100,8 @@ export default class Probes extends BaseWidget {
         this.chart = new Chart($('#probes-w-chart')[0].getContext('2d'), {
             type: 'line',
             data: {labels: [], datasets: ['blocklist', 'all'].map(k => ({
-                key: k, label: this.translations[k], data: [],
+                // the blocklist line on top: Chart.js draws a lower order later
+                key: k, label: this.translations[k], data: [], order: k === 'blocklist' ? 0 : 1,
                 borderColor: this.colors[k][0], backgroundColor: this.colors[k][1], fill: 'origin'
             }))},
             options: {
