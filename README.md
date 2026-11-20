@@ -2,9 +2,9 @@
 
 The moment anything goes online, it's being probed. Within minutes of getting a public address, a connection is swept by scanners looking for an open port, bots trying default passwords on telnet, SSH and RDP, and exploit kits hunting for an unpatched camera, NAS or router. It never stops: thousands of attempts a day, from all over the world.
 
-Your firewall blocks them and writes each one to a log nobody reads. **Probes reads it for you, and answers one question: who is trying to break in, how, and from where?**
+Your firewall blocks them and writes each one to a log nobody reads. **Probes reads it for you, and shows you who is trying to break in, how, and from where.**
 
-Inside the OPNsense GUI, it shows the probing over time, every source with its country and what it tried, every port that gets tried and by how many, and a world map of where it all comes from. It answers questions like *"how much of this is going on?"*, *"who is the busiest scanner this week?"*, *"what did this address try?"*, *"who's been trying SSH?"*, *"how much is my blocklist actually catching?"* and *"where is all this coming from?"*
+Inside the OPNsense GUI, you get the probing over time, every source with its country and what it tried, every port that gets tried and by how many, and a world map of where it all comes from. It answers questions like *"how much of this is going on?"*, *"who is the busiest scanner this week?"*, *"what did this address try?"*, *"who's been trying SSH?"*, *"how much is my blocklist actually catching?"* and *"where is all this coming from?"*
 
 ![Probes: the graph, totals and the busiest sources](docs/images/sources.png)
 
