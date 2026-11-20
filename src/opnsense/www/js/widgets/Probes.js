@@ -103,6 +103,11 @@ export default class Probes extends BaseWidget {
         return [...out.entries()].sort((a, b) => a[0] - b[0]).map(([t, v]) => [t, ...v]);
     }
 
+    // the seconds a point starting at `t` covers: `size`, or up to now for the one still filling (so it isn't a false dip)
+    static covers(t, size) {
+        return Math.max(60, Math.min(size, Date.now() / 1000 - t));
+    }
+
     async onMarkupRendered() {
         this.colors = {
             all: ['rgba(54,162,235,1)', 'rgba(54,162,235,0.25)'],
@@ -148,19 +153,18 @@ export default class Probes extends BaseWidget {
 
     // the last 24 hours per 15 minutes: all blocked packets, and those blocked by blocklist rules (per minute, averaged)
     updateChart(d) {
-        const perMin = d.step / 60;
         $('#probes-w-total').html(
             `<span class="pw-key" style="background:${this.colors.all[0]}"></span>${Probes.count(d.packets)} ${this.translations.blocked}`
             + ` &nbsp;<span class="pw-key" style="background:${this.colors.blocklist[0]}"></span>${Probes.count(d.listed)} ${this.translations.bylists}`);
         $('#probes-w-note').text(d.data_since && d.data_since > d.since + 3600 ? this.translations.since + ' '
             + new Date(d.data_since * 1000).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'}) : '');
-        // the peak from the 5-minute points; the line per 15 minutes, as in Loupe's widget
-        const peak = Math.max(0, ...d.series.map(r => r[1] / perMin));
-        const size = 15 * 60, points = Probes.buckets(d.series, d.step, size);
+        // per 15 minutes (or the data's own step, when longer), as in Loupe's widget; the peak is the line's highest point
+        const size = Math.max(d.step, 15 * 60), points = Probes.buckets(d.series, d.step, size);
         this.chart.data.labels = points.map(p => p[0] * 1000);
         this.chart.data.datasets.forEach(ds => {
-            ds.data = points.map(p => (ds.key === 'all' ? p[1] : p[2]) / (size / 60));
+            ds.data = points.map(p => (ds.key === 'all' ? p[1] : p[2]) / (Probes.covers(p[0], size) / 60));
         });
+        const peak = Math.max(0, ...this.chart.data.datasets.find(ds => ds.key === 'all').data);
         $('#probes-w-peak').text(`${this.translations.peak} ${peak.toFixed(peak < 10 ? 1 : 0)}${this.translations.min}`);
         this.chart.update();
     }
