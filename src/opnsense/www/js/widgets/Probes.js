@@ -71,6 +71,11 @@ export default class Probes extends BaseWidget {
         `);
     }
 
+    // the blocklists' share of everything blocked, as " (38%)" (as on the page)
+    static share(part, whole) {
+        return !whole ? '' : ' (' + (part && part < whole / 100 ? '<1' : part < whole && part > whole * 0.99 ? '>99' : Math.round(100 * part / whole)) + '%)';
+    }
+
     static count(n) {
         return Math.round(n).toLocaleString();
     }
@@ -155,7 +160,7 @@ export default class Probes extends BaseWidget {
     updateChart(d) {
         $('#probes-w-total').html(
             `<span class="pw-key" style="background:${this.colors.all[0]}"></span>${Probes.count(d.packets)} ${this.translations.blocked}`
-            + ` &nbsp;<span class="pw-key" style="background:${this.colors.blocklist[0]}"></span>${Probes.count(d.listed)} ${this.translations.bylists}`);
+            + ` &nbsp;<span class="pw-key" style="background:${this.colors.blocklist[0]}"></span>${Probes.count(d.listed)} ${this.translations.bylists}${Probes.share(d.listed, d.packets)}`);
         $('#probes-w-note').text(d.data_since && d.data_since > d.since + 3600 ? this.translations.since + ' '
             + new Date(d.data_since * 1000).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'}) : '');
         // per 15 minutes (or the data's own step, when longer), as in Loupe's widget; the peak is the line's highest point

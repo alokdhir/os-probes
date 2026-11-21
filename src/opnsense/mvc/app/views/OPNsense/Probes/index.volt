@@ -75,6 +75,8 @@ POSSIBILITY OF SUCH DAMAGE.
             return plain.replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
         }
         const num = n => Math.round(n || 0).toLocaleString();
+        /* the blocklists' share of everything blocked, as " (38%)": how much of the probing they recognise */
+        const share = (part, whole) => !whole ? '' : ' (' + (part && part < whole / 100 ? '<1' : part < whole && part > whole * 0.99 ? '>99' : Math.round(100 * part / whole)) + '%)';
         const compact = n => new Intl.NumberFormat([], {notation: 'compact', maximumFractionDigits: 1}).format(n || 0);
         const bytes = n => { let i = 0; n = n || 0; while (n >= 1000 && i < 4) { n /= 1000; i++; }
             return `${n.toFixed(n < 10 && i ? 1 : 0)} ${['B', 'KB', 'MB', 'GB', 'TB'][i]}`; };
@@ -197,7 +199,7 @@ POSSIBILITY OF SUCH DAMAGE.
             const s = summary;
             $('#probes-totals').html(
                 `<span class="probes-key" style="background:${BLUE}"></span><strong>${num(s.packets)}</strong> {{ lang._('packets blocked') }}`
-                + ` &nbsp;<span class="probes-key" style="background:${RED}"></span><strong>${num(s.listed)}</strong> {{ lang._('by blocklists') }}`
+                + ` &nbsp;<span class="probes-key" style="background:${RED}"></span><strong>${num(s.listed)}</strong> {{ lang._('by blocklists') }}${share(s.listed, s.packets)}`
                 + ` &nbsp;· <strong>${num(s.sources)}</strong> {{ lang._('sources') }}`);
             if (s.replies) {
                 const who = (s.reply_sources || []).map(r => `${r.ip}${r.country ? ' (' + countryName(r.country) + ')' : ''}: ${num(r.packets)}`);
