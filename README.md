@@ -44,7 +44,7 @@ Inside the OPNsense GUI, you get the probing over time, every source with its co
 
 Packets **blocked coming in on a WAN interface**, as the firewall log records them. Traffic that's allowed in (to a port you forward, say) isn't a probe and isn't counted; neither is anything on your own networks.
 
-- **A WAN** is any enabled interface with a gateway set, or an address obtained from the provider (DHCP, DHCPv6, PPPoE and the like). With several WANs, they're added together.
+- **A WAN** is any enabled interface with a gateway set (on the interface, or an upstream gateway for it in *System ▸ Gateways*), or an address obtained from the provider (DHCP, DHCPv6, PPPoE and the like). With several WANs, they're added together.
 - **Only rules that log are in the log.** OPNsense's default deny rule logs unless *Firewall ▸ Settings ▸ Advanced ▸ Log packets that are blocked by the default rule* is turned off, so in a usual setup Probes sees nearly everything blocked. Your own block rules show up when they log.
 - **A blocklist rule** is an enabled block or reject rule, inbound (or both directions), on a WAN (or floating), whose source is an alias filled from a URL: type *URL*, *URL Table* or *URL Table (JSON)*. For example [Spamhaus DROP](https://docs.opnsense.org/manual/how-tos/drop.html) in a URL Table alias. Only rules made in *Firewall ▸ Rules* are recognised (pf labels those with their ID); legacy rules are not.
 

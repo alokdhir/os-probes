@@ -145,14 +145,19 @@ def text(node, path):
 
 
 def wan_interfaces(root=None):
-    """ {interface name (wan, opt1...): device (igb0...)}: enabled, with a gateway or an address from the provider """
+    """ {interface name (wan, opt1...): device (igb0...)}: enabled, with a gateway or an address from the provider,
+        or with an upstream gateway in System > Gateways (a static WAN can have its gateway only there) """
     root = root if root is not None else ET.parse(CONFIG).getroot()
+    upstream = {
+        text(gw, 'interface') for gw in root.iterfind('OPNsense/Gateways/gateway_item')
+        if text(gw, 'defaultgw') == '1' and text(gw, 'disabled') != '1'
+    }
     wans = {}
     interfaces = root.find('interfaces')
     for node in (interfaces if interfaces is not None else []):
         if node.find('enable') is None or not text(node, 'if'):
             continue
-        if text(node, 'gateway') or text(node, 'gatewayv6') or \
+        if text(node, 'gateway') or text(node, 'gatewayv6') or node.tag in upstream or \
                 text(node, 'ipaddr') in DYNAMIC or text(node, 'ipaddrv6') in DYNAMIC:
             wans[node.tag] = text(node, 'if')
     return wans
