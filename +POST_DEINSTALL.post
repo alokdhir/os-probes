@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# the collector's cron job goes with plugins.inc.d/probes.inc (on an upgrade, the install puts it back)
+/usr/local/sbin/pluginctl -s cron restart >/dev/null 2>&1 || :
+
+# Python's byte-code caches are not in the package: remove them so the directory goes too
+rm -rf /usr/local/opnsense/scripts/probes/__pycache__
+rmdir /usr/local/opnsense/scripts/probes 2>/dev/null || :
+
+# the data in /var/db/probes stays until you delete it

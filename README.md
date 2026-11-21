@@ -67,7 +67,7 @@ Its three scripts run as root, as every plugin's configd actions do: the collect
 - **Commands**: `pfctl` and Health's `rrdtool` are run with fixed arguments, never through a shell.
 - **Untrusted text on the page** (addresses, and whois answers, which the network's owner partly writes) is escaped wherever it's shown, and a whois link is only made for an `https://` address.
 - **Network**: the only outbound connections are whois lookups, over HTTPS to IANA and the regional registry, made only when you press *Whois*. No telemetry, no update checks, no CDN: the page uses OPNsense's own copies of Chart.js and d3, and the world map ships with the plugin.
-- **The package** holds no compiled code and no install scripts; what's in this repository is what runs.
+- **The package** holds no compiled code. Its only install scripts restart cron (so the collector's job is added, or removed on uninstall) and remove Python's byte-code caches on uninstall; what's in this repository is what runs.
 
 ## Install
 

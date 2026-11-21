@@ -1,0 +1,5 @@
+#!/bin/sh
+
+# the collector runs from cron (plugins.inc.d/probes.inc), and OPNsense writes the crontab only when cron is
+# (re)configured, not when a package is installed: without this it would not start until a reboot
+/usr/local/sbin/pluginctl -s cron restart >/dev/null 2>&1 || :
