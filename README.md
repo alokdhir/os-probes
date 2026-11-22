@@ -45,7 +45,7 @@ Inside the OPNsense GUI, you get the probing over time, every source with its co
 
 Packets **blocked coming in on a WAN interface**, as the firewall log records them. Traffic that's allowed in (to a port you forward, say) isn't a probe and isn't counted; neither is anything on your own networks.
 
-- **A WAN** is any enabled interface with a gateway set (on the interface, or an upstream gateway for it in *System ▸ Gateways*), or an address obtained from the provider (DHCP, DHCPv6, PPPoE and the like). With several WANs, they're added together.
+- **A WAN** is any enabled interface with a gateway set (on the interface, or an upstream gateway for it in *System ▸ Gateways*), an address obtained from the provider (DHCP, DHCPv6, PPPoE and the like), or the router's default route. With several WANs, they're added together.
 - **Only rules that log are in the log.** OPNsense's default deny rule logs unless *Firewall ▸ Settings ▸ Advanced ▸ Log packets that are blocked by the default rule* is turned off, so in a usual setup Probes sees nearly everything blocked. Your own block rules show up when they log.
 - **A blocklist rule** is an enabled block or reject rule, inbound (or both directions), on a WAN (or floating), whose source is an alias filled from a URL: type *URL*, *URL Table* or *URL Table (JSON)*. For example [Spamhaus DROP](https://docs.opnsense.org/manual/how-tos/drop.html) in a URL Table alias. Only rules made in *Firewall ▸ Rules* are recognised (pf labels those with their ID); legacy rules are not.
 
@@ -65,7 +65,7 @@ Its three scripts run as root, as every plugin's configd actions do: the collect
 
 - **What it reads from the outside world** is what the firewall log records about a blocked packet: its addresses, protocol and ports. A line is used only when its interface, action, direction and protocol are ones Probes expects, and ports only when they're numbers; everything is stored as bound parameters. Nothing else from a packet is read.
 - **Input from the page** is checked twice: by the API (addresses must be addresses, periods and page sizes have limits, sorting is by a fixed list of columns, search text is cut down to letters, digits and a few separators) and again by the query script. Everything reaches SQLite as a bound parameter, never as part of the SQL. The queries open the database read-only.
-- **Commands**: `pfctl` and Health's `rrdtool` are run with fixed arguments, never through a shell.
+- **Commands**: `pfctl`, `route` (to find the default route) and Health's `rrdtool` are run with fixed arguments, never through a shell.
 - **Untrusted text on the page** (addresses, and whois answers, which the network's owner partly writes) is escaped wherever it's shown, and a whois link is only made for an `https://` address.
 - **Network**: the only outbound connections are whois lookups, over HTTPS to IANA and the regional registry, made only when you press *Whois*. No telemetry, no update checks, no CDN: the page uses OPNsense's own copies of Chart.js and d3, and the world map ships with the plugin.
 - **The package** holds no compiled code. Its only install scripts restart cron (so the collector's job is added, or removed on uninstall) and remove Python's byte-code caches on uninstall; what's in this repository is what runs.

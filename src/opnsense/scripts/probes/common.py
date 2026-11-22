@@ -30,6 +30,7 @@
 import ipaddress
 import os
 import sqlite3
+import subprocess
 import xml.etree.ElementTree as ET
 
 CONFIG = '/conf/config.xml'
@@ -144,10 +145,29 @@ def text(node, path):
     return (found.text or '').strip() if found is not None else ''
 
 
-def wan_interfaces(root=None):
-    """ {interface name (wan, opt1...): device (igb0...)}: enabled, with a gateway or an address from the provider,
-        or with an upstream gateway in System > Gateways (a static WAN can have its gateway only there) """
+def default_route_devices():
+    """ the devices (igb0, vlan01...) the default routes go out on now, IPv4 and IPv6: whatever the gateway
+        settings say, these lead to the internet """
+    devices = set()
+    for family in ('-inet', '-inet6'):
+        try:
+            out = subprocess.run(['/sbin/route', '-n', 'get', family, 'default'], capture_output=True, text=True,
+                                 timeout=10).stdout
+        except (OSError, subprocess.SubprocessError):
+            continue
+        for line in out.splitlines():
+            key, _, value = line.strip().partition(':')
+            if key == 'interface' and value.strip():
+                devices.add(value.strip())
+    return devices
+
+
+def wan_interfaces(root=None, routes=None):
+    """ {interface name (wan, opt1...): device (igb0...)}: enabled, and with a gateway or an address from the
+        provider, an upstream gateway in System > Gateways, or the default route (a static WAN can have its gateway
+        only in System > Gateways, and core routes through it even when it isn't marked upstream) """
     root = root if root is not None else ET.parse(CONFIG).getroot()
+    routes = routes if routes is not None else default_route_devices()
     upstream = {
         text(gw, 'interface') for gw in root.iterfind('OPNsense/Gateways/gateway_item')
         if text(gw, 'defaultgw') == '1' and text(gw, 'disabled') != '1'
@@ -157,7 +177,7 @@ def wan_interfaces(root=None):
     for node in (interfaces if interfaces is not None else []):
         if node.find('enable') is None or not text(node, 'if'):
             continue
-        if text(node, 'gateway') or text(node, 'gatewayv6') or node.tag in upstream or \
+        if text(node, 'gateway') or text(node, 'gatewayv6') or node.tag in upstream or text(node, 'if') in routes or \
                 text(node, 'ipaddr') in DYNAMIC or text(node, 'ipaddrv6') in DYNAMIC:
             wans[node.tag] = text(node, 'if')
     return wans
